@@ -1,0 +1,17 @@
+# Xcode / build
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcresult
+
+# XcodeGen generates this from project.yml — run `xcodegen generate`
+BBQlaw.xcodeproj/
+
+# macOS
+.DS_Store
+
+# Relay worker
+relay/node_modules/
+relay/.dev.vars
+relay/.wrangler/
