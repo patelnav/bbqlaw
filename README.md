@@ -88,7 +88,8 @@ BBQlaw/
   ContentView.swift         SwiftUI UI + device scanner sheet
   ThermometerManager.swift  CoreBluetooth central + alarm logic
   BridgeClient.swift        Relay push (~20s + on target)
-  BridgeLinkManager.swift   Link code redeem + state
+  BridgeLinkManager.swift   In-app relay pair + state
+  BridgeRelayConfig.swift   Relay base URL + endpoints
   BridgeKeychain.swift    Device token storage
   Models.swift              GATT UUIDs, decoders, types
   Info.plist                BLE usage string + background mode

@@ -1,2 +1,3 @@
 # Copy to .dev.vars for `wrangler dev` (gitignored).
-READER_TOKEN=dev-reader-token-change-me
+# Optional — PUBLIC_BASE_URL defaults in wrangler.toml.
+# PUBLIC_BASE_URL=https://bbqlaw-relay.<account>.workers.dev

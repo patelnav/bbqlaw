@@ -26,15 +26,6 @@ struct BBQlawApp: App {
                     bridgeLink.refreshLinkState()
                     bridgeClient.refresh()
                 }
-                .onOpenURL { url in
-                    guard url.scheme == "bbqlaw", url.host == "link" else { return }
-                    let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                        .queryItems?
-                        .first(where: { $0.name == "code" })?
-                        .value
-                    guard let code else { return }
-                    Task { await bridgeLink.redeem(code: code) }
-                }
         }
     }
 }

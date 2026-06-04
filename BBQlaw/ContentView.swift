@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct ContentView: View {
     @EnvironmentObject private var thermo: ThermometerManager
@@ -6,8 +9,6 @@ struct ContentView: View {
     @EnvironmentObject private var bridgeClient: BridgeClient
     @AppStorage("useCelsius") private var useCelsius = false
     @State private var showScanner = false
-
-    private static let linkPageURL = URL(string: "https://bbqlaw.app/link")!
 
     var body: some View {
         NavigationStack {
@@ -146,6 +147,37 @@ struct ContentView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+            if let latestUrl = bridgeLink.latestUrl, bridgeLink.isLinked {
+                Text("Poll: \(latestUrl)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
+            }
+            if let readerToken = bridgeLink.readerToken, bridgeLink.isLinked {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Reader token (for OpenClaw)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(readerToken)
+                        .font(.system(.caption2, design: .monospaced))
+                        .textSelection(.enabled)
+                        .lineLimit(3)
+                    Button("Copy reader token") {
+                        #if canImport(UIKit)
+                        UIPasteboard.general.string = readerToken
+                        #endif
+                    }
+                    .font(.footnote)
+                    .buttonStyle(.bordered)
+                }
+                Text("Give this reader token to your OpenClaw so it can poll the cook.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else if bridgeLink.isLinked {
+                Text("Reader token was shown at link time — tap Unlink and Link again to mint a new one.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
             if let err = bridgeLink.lastError {
                 Text(err).font(.footnote).foregroundStyle(.red)
             } else if let ok = bridgeLink.lastSuccess {
@@ -155,14 +187,18 @@ struct ContentView: View {
                 Text(pushErr).font(.footnote).foregroundStyle(.orange)
             }
             HStack(spacing: 12) {
-                Link(destination: Self.linkPageURL) {
-                    Label("Open link page", systemImage: "link")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
                 if bridgeLink.isLinked {
                     Button("Unlink", role: .destructive) { bridgeLink.unlink() }
                         .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Button {
+                        Task { await bridgeLink.pair() }
+                    } label: {
+                        Label("Link", systemImage: "link")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
             }
         }

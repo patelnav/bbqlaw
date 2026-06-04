@@ -14,5 +14,4 @@ preview_id = "REPLACE_AFTER_KV_CREATE"
 [vars]
 PUBLIC_BASE_URL = "https://bbqlaw.app"
 
-# Set via `wrangler secret put READER_TOKEN` — never commit the real value.
-# For local dev, copy relay/.dev.vars.example → relay/.dev.vars
+# For local dev, copy relay/.dev.vars.example → relay/.dev.vars (optional overrides).

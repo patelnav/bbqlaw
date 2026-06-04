@@ -1,15 +1,16 @@
 import Foundation
 import os
 
-/// Redeems one-time link codes and tracks bridge link state.
+/// In-app pairing with the relay and bridge link state.
 @MainActor
 final class BridgeLinkManager: ObservableObject {
     @Published private(set) var isLinked = BridgeKeychain.isLinked
     @Published private(set) var deviceId: String?
+    @Published private(set) var readerToken: String?
+    @Published private(set) var latestUrl: String?
     @Published private(set) var lastError: String?
     @Published private(set) var lastSuccess: String?
 
-    private static let redeemURL = URL(string: "https://bbqlaw.app/api/link/redeem")!
     private let log = Logger(subsystem: "com.bbqlaw.app", category: "bridge")
 
     init() {
@@ -23,26 +24,22 @@ final class BridgeLinkManager: ObservableObject {
 
     func unlink() {
         BridgeKeychain.clear()
+        readerToken = nil
+        latestUrl = nil
         refreshLinkState()
         lastSuccess = "Bridge unlinked."
         lastError = nil
     }
 
-    /// Redeem a one-time code from bbqlaw://link?code=… or manual entry.
-    func redeem(code rawCode: String) async {
-        let code = rawCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !code.isEmpty else {
-            lastError = "Missing link code."
-            return
-        }
-
+    /// Pair with the relay (phone-initiated); stores device credentials in Keychain.
+    func pair() async {
         lastError = nil
         lastSuccess = nil
 
-        var request = URLRequest(url: Self.redeemURL)
+        var request = URLRequest(url: BridgeRelayConfig.pairURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONEncoder().encode(["code": code])
+        request.httpBody = "{}".data(using: .utf8)
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -51,12 +48,12 @@ final class BridgeLinkManager: ObservableObject {
                 return
             }
             if http.statusCode != 200 {
-                let msg = (try? JSONDecoder().decode(RedeemError.self, from: data))?.error
-                    ?? "Link failed (HTTP \(http.statusCode))."
+                let msg = (try? JSONDecoder().decode(PairError.self, from: data))?.error
+                    ?? "Pair failed (HTTP \(http.statusCode))."
                 lastError = msg
                 return
             }
-            let payload = try JSONDecoder().decode(RedeemResponse.self, from: data)
+            let payload = try JSONDecoder().decode(PairResponse.self, from: data)
             guard let ingestURL = URL(string: payload.ingestUrl) else {
                 lastError = "Invalid ingest URL from relay."
                 return
@@ -69,21 +66,25 @@ final class BridgeLinkManager: ObservableObject {
                 lastError = "Could not save credentials to Keychain."
                 return
             }
+            readerToken = payload.readerToken
+            latestUrl = payload.latestUrl
             refreshLinkState()
-            lastSuccess = "Linked as \(payload.device)."
-            log.notice("bridge linked device=\(payload.device, privacy: .public)")
+            lastSuccess = "Linked as \(payload.device). Copy the reader token for OpenClaw."
+            log.notice("bridge paired device=\(payload.device, privacy: .public)")
         } catch {
             lastError = error.localizedDescription
         }
     }
 
-    private struct RedeemResponse: Decodable {
+    private struct PairResponse: Decodable {
         let device: String
         let deviceToken: String
+        let readerToken: String
         let ingestUrl: String
+        let latestUrl: String
     }
 
-    private struct RedeemError: Decodable {
+    private struct PairError: Decodable {
         let error: String
     }
 }

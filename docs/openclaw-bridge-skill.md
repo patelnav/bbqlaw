@@ -5,26 +5,16 @@ plugin — just a secret and this paragraph.
 
 ## Secret
 
-Store a **reader token** in your agent's secret store (for your OpenClaw: e.g. GCP Secret Manager
-alongside `GATEWAY_TOKEN`). Name suggestion: `BBQLAW_READER_TOKEN`.
+The user pairs in the BBQlaw iOS app (**Link to your OpenClaw**), then copies the
+**reader token** shown in the app. Store it in your agent's secret store (for your
+OpenClaw: e.g. GCP Secret Manager alongside `GATEWAY_TOKEN`). Name suggestion:
+`BBQLAW_READER_TOKEN`.
 
-Mint device pairing links with that token:
-
-```http
-POST https://bbqlaw.app/api/link/new
-Authorization: Bearer <reader_token>
-Content-Type: application/json
-
-{ "device": "brisket" }
-```
-
-Returns `{ "url": "https://bbqlaw.app/link#ABCD1234", "code", "device", … }`.
-Text the user the `url` (or just the hash code). They open it on their phone →
-**Open in BBQlaw** → the app redeems the code and starts pushing readings.
+Each pairing is its own tenant — there is no shared relay secret.
 
 ## Skill paragraph (paste into agent config)
 
-> To check a BBQ probe, GET `https://bbqlaw.app/api/latest?device=<id>` with
+> To check a BBQ probe, GET `https://bbqlaw.app/api/latest` with
 > `Authorization: Bearer <reader_token>`. The response includes `tempF`, `targetF`,
 > `connected`, and **`ageSeconds`** — how long since the phone last pushed a reading.
 >
@@ -37,12 +27,13 @@ Text the user the `url` (or just the hash code). They open it on their phone →
 > already notifies the person holding it locally; your job is notifying *someone else*
 > and catching staleness the phone can't report about itself.
 >
-> To pair a new phone, POST `/api/link/new` and send the user the returned link URL.
+> If the user needs a new reader token, they tap Unlink then Link again in the app
+> (this also supersedes the old phone push token).
 
 ## Example poll
 
 ```bash
-curl -s "https://bbqlaw.app/api/latest?device=brisket" \
+curl -s "https://bbqlaw.app/api/latest" \
   -H "Authorization: Bearer $BBQLAW_READER_TOKEN" | jq
 ```
 
@@ -62,7 +53,7 @@ curl -s "https://bbqlaw.app/api/latest?device=brisket" \
 
 | Token | Who holds it | Used for |
 |-------|----------------|----------|
-| **Device token** | iPhone Keychain (via link redeem) | `POST /api/ingest` |
-| **Reader token** | Agent secret store | `GET /api/latest`, `POST /api/link/new` |
+| **Device token** | iPhone Keychain (in-app pair) | `POST /api/ingest` |
+| **Reader token** | Agent secret store (copied from app) | `GET /api/latest` |
 
-The real tokens never appear in URLs — only single-use link codes do (5-minute TTL).
+The reader token is shown once at pair time — the user must copy it into OpenClaw then.
