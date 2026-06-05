@@ -1095,13 +1095,15 @@ struct BBQSettingsSheet: View {
     @EnvironmentObject private var bridgeLink: BridgeLinkManager
     @Environment(\.dismiss) private var dismiss
 
+    @State private var linking = false
+    @State private var copiedMessage: String?
+
     let activeId: UUID?
     var useCelsius: Bool
     var onToggleUnits: (Bool) -> Void
     var onSelectProbe: (UUID) -> Void
     var onAddDevice: () -> Void
     var onRemoveProbe: (UUID) -> Void
-    var onOpenLink: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -1153,44 +1155,74 @@ struct BBQSettingsSheet: View {
                     sectionLabel("Automations")
                         .padding(.top, 22)
                     settingsGroup {
-                        Button(action: onOpenLink) {
-                            HStack {
-                                HStack(spacing: 11) {
-                                    Image(systemName: "link")
-                                        .foregroundStyle(bridgeLink.isLinked ? BBQ.ember : BBQ.fg2)
-                                    Text("Link to your OpenClaw")
-                                        .font(BBQ.ui(16, weight: .semibold))
-                                        .foregroundStyle(BBQ.fg1)
+                        if bridgeLink.isLinked, let url = bridgeLink.shareURL {
+                            HStack(spacing: 0) {
+                                Button {
+                                    copyLink(url, message: "Copied ✓")
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Text(url)
+                                            .font(BBQ.mono(14))
+                                            .foregroundStyle(BBQ.fg1)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                        Spacer(minLength: 8)
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundStyle(BBQ.fg3)
+                                    }
+                                    .padding(.vertical, 15)
+                                    .contentShape(Rectangle())
                                 }
-                                Spacer()
-                                HStack(spacing: 6) {
-                                    Text(bridgeLink.isLinked ? "Linked" : "Not linked")
-                                        .font(BBQ.ui(15, weight: .semibold))
-                                        .foregroundStyle(bridgeLink.isLinked ? BBQ.ember : BBQ.fg3)
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(BBQ.fg3)
+                                .buttonStyle(.plain)
+
+                                Button {
+                                    bridgeLink.unlink()
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(BBQ.danger)
+                                        .padding(.leading, 14)
+                                        .padding(.vertical, 15)
+                                        .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Unlink OpenClaw")
                             }
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 15)
-                        }
-                        .buttonStyle(.plain)
-
-                        if bridgeLink.isLinked {
-                            BBQHairline().padding(.leading, 16)
-                            Button {
-                                bridgeLink.unlink()
-                            } label: {
-                                Text("Unlink")
-                                    .font(BBQ.ui(16, weight: .semibold))
-                                    .foregroundStyle(BBQ.danger)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 15)
+                        } else if linking {
+                            HStack(spacing: 9) {
+                                ProgressView().controlSize(.small)
+                                Text("Linking…")
+                                    .font(BBQ.ui(15, weight: .semibold))
+                                    .foregroundStyle(BBQ.fg3)
                             }
-                            .buttonStyle(.plain)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 15)
+                        } else {
+                            BBQPrimaryButton(title: "Link to OpenClaw & copy", icon: "link", fullWidth: true) {
+                                Task { await linkAndCopy() }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
                         }
+                    }
+
+                    if let copiedMessage {
+                        Text(copiedMessage)
+                            .font(BBQ.ui(13, weight: .semibold))
+                            .foregroundStyle(BBQ.ember)
+                            .padding(.horizontal, 6)
+                            .padding(.top, 8)
+                    }
+
+                    if let err = bridgeLink.lastError {
+                        Text(err)
+                            .font(BBQ.ui(13))
+                            .foregroundStyle(BBQ.danger)
+                            .padding(.horizontal, 6)
+                            .padding(.top, copiedMessage == nil ? 8 : 4)
                     }
 
                     Text("Forward live readings so your agent can watch the cook and message someone when it's done. Your phone stays the Bluetooth bridge.")
@@ -1274,70 +1306,28 @@ struct BBQSettingsSheet: View {
         }
         .padding(.horizontal, 16)
     }
-}
 
-struct BBQLinkSheet: View {
-    @EnvironmentObject private var bridgeLink: BridgeLinkManager
-    @Environment(\.dismiss) private var dismiss
+    private func copyLink(_ url: String, message: String) {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = url
+        #endif
+        flashCopied(message)
+    }
 
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    BBQSheetHeader(title: "Link to your OpenClaw")
-                    Text("Forward live readings so your agent can watch the cook and message someone when it's done. Your phone stays the Bluetooth bridge.")
-                        .font(BBQ.ui(15))
-                        .foregroundStyle(BBQ.fg2)
-                        .padding(.bottom, 16)
-
-                    if bridgeLink.isLinked, let url = bridgeLink.shareURL {
-                        Text(url)
-                            .font(BBQ.mono(14))
-                            .foregroundStyle(BBQ.fg1)
-                            .textSelection(.enabled)
-                            .padding(14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(BBQ.surface2, in: RoundedRectangle(cornerRadius: BBQ.R.md, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: BBQ.R.md, style: .continuous)
-                                    .strokeBorder(BBQ.line, lineWidth: 1)
-                            )
-                        BBQPrimaryButton(title: "Copy link", icon: "doc.on.doc", fullWidth: true) {
-                            #if canImport(UIKit)
-                            UIPasteboard.general.string = url
-                            #endif
-                        }
-                        .padding(.top, 10)
-                        Text("Give this link to your OpenClaw so it can watch the cook.")
-                            .font(BBQ.ui(12.5, weight: .medium))
-                            .foregroundStyle(BBQ.fg3)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 12)
-                    } else {
-                        BBQPrimaryButton(title: "Link to your OpenClaw", icon: "link", fullWidth: true) {
-                            Task { await bridgeLink.pair() }
-                        }
-                    }
-
-                    if let err = bridgeLink.lastError {
-                        Text(err)
-                            .font(BBQ.ui(13))
-                            .foregroundStyle(BBQ.danger)
-                            .padding(.top, 12)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 24)
-            }
-            .background(BBQ.bg)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
+    private func linkAndCopy() async {
+        linking = true
+        await bridgeLink.pair()
+        linking = false
+        if let url = bridgeLink.shareURL {
+            copyLink(url, message: "Link copied to clipboard ✓")
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+    }
+
+    private func flashCopied(_ message: String) {
+        copiedMessage = message
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if copiedMessage == message { copiedMessage = nil }
+        }
     }
 }

@@ -9,7 +9,6 @@ struct ContentView: View {
     @State private var showScanner = false
     @State private var showMeat = false
     @State private var showSettings = false
-    @State private var showLink = false
 
     private var active: Probe? {
         if let id = activeId, let p = thermo.probes.first(where: { $0.id == id }) { return p }
@@ -82,14 +81,9 @@ struct ContentView: View {
                     thermo.removeProbe(id)
                     if activeId == id { activeId = thermo.probes.first?.id }
                     if thermo.probes.isEmpty { showSettings = false }
-                },
-                onOpenLink: {
-                    showSettings = false
-                    showLink = true
                 }
             )
         }
-        .sheet(isPresented: $showLink) { BBQLinkSheet() }
         .onChange(of: thermo.probes.count) { oldCount, newCount in
             syncActiveProbe(oldCount: oldCount, newCount: newCount)
         }
