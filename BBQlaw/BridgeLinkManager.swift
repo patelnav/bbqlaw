@@ -8,7 +8,7 @@ final class BridgeLinkManager: ObservableObject {
     @Published private(set) var deviceId: String?
     @Published private(set) var readerToken: String?
     @Published private(set) var latestUrl: String?
-    /// Shareable OpenClaw feed URL (`https://bbqlaw.app/openclaw#<readerToken>`).
+    /// Shareable OpenClaw feed URL (`https://bbqlaw.app/openclaw/<readerToken>`).
     @Published private(set) var shareURL: String?
     @Published private(set) var lastError: String?
     @Published private(set) var lastSuccess: String?
@@ -111,6 +111,6 @@ final class BridgeLinkManager: ObservableObject {
     }
 
     private static func feedURL(readerToken: String) -> String {
-        "https://bbqlaw.app/openclaw#" + readerToken
+        "https://bbqlaw.app/openclaw/" + readerToken
     }
 }

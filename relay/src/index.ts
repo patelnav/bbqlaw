@@ -114,8 +114,9 @@ async function handlePair(
     ingestUrl: `${base}/api/ingest`,
     latestUrl: `${base}/api/latest`,
     historyUrl: `${base}/api/history`,
-    // The shareable surface handed to OpenClaw: token lives in the URL fragment.
-    feedUrl: `${base}/openclaw#${readerToken}`,
+    // The shareable surface handed to OpenClaw: a unique non-guessable URL per
+    // pairing, with the reader token as the path segment.
+    feedUrl: `${base}/openclaw/${readerToken}`,
   });
 }
 

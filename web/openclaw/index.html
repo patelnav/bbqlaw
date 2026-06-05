@@ -94,7 +94,7 @@
 
   <div id="panel-empty" class="empty">
     <h2>No cook linked</h2>
-    <p>Open this from the BBQlaw app's Link screen. Your share URL looks like <code style="font:500 13px var(--font-mono)">bbqlaw.app/openclaw#…</code></p>
+    <p>Open this from the BBQlaw app's Link screen. Your share URL looks like <code style="font:500 13px var(--font-mono)">bbqlaw.app/openclaw/…</code></p>
   </div>
 
   <div id="panel-live" class="hidden">
@@ -152,7 +152,14 @@
   let tickTimer = null;
 
   function readerToken() {
-    return (location.hash || "").replace(/^#/, "").trim();
+    // Unique per-instance token lives in the path: /openclaw/<token>.
+    // (Legacy: also accept a #fragment token.)
+    const parts = location.pathname.split("/").filter(Boolean);
+    const idx = parts.indexOf("openclaw");
+    let t = idx >= 0 && parts.length > idx + 1 ? parts[idx + 1] : "";
+    if (t === "index.html") t = "";
+    if (!t && location.hash) t = location.hash.replace(/^#/, "");
+    return decodeURIComponent(t || "").trim();
   }
 
   function esc(s) {
