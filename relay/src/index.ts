@@ -482,9 +482,22 @@ async function uniqueSlug(env: Env): Promise<string> {
   return `${randomSlug()}-${digits[0] % 10}${digits[1] % 10}`;
 }
 
+// Middle word (woods / fire elements) — gives the three-word slug more entropy.
+const SLUG_MID = [
+  "oak", "hickory", "mesquite", "pecan", "maple", "cherry", "apple", "birch",
+  "cedar", "ash", "ember", "coal", "smoke", "flame", "spark", "cinder",
+  "char", "fire", "heat", "glow", "pit", "stoke", "lump", "kindle",
+  "blaze", "flare", "soot", "wood", "flint", "torch", "hearth", "kiln",
+  "forge", "campfire", "bonfire", "brimstone", "magma", "lava", "scorch", "singe",
+];
+
 function randomSlug(): string {
-  const r = crypto.getRandomValues(new Uint8Array(2));
-  return `${SLUG_ADJ[r[0] % SLUG_ADJ.length]}-${SLUG_NOUN[r[1] % SLUG_NOUN.length]}`;
+  const r = crypto.getRandomValues(new Uint8Array(3));
+  return [
+    SLUG_ADJ[r[0] % SLUG_ADJ.length],
+    SLUG_MID[r[1] % SLUG_MID.length],
+    SLUG_NOUN[r[2] % SLUG_NOUN.length],
+  ].join("-");
 }
 
 function randomToken(): string {

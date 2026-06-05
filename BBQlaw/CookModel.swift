@@ -65,6 +65,7 @@ struct Probe: Identifiable, Equatable {
     var authState: AuthState = .none
     var readingNote: String?
     var advertisedName: String?
+    var lastReadingAt: Date?     // when we last heard a reading from this probe
 
     // Alarm bookkeeping (so a mid-cook reconnect doesn't re-fire).
     var targetReached: Bool = false

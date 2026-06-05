@@ -31,38 +31,31 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             BBQ.bg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                if showMonitoring {
-                    BBQTopBar(
-                        useCelsius: useCelsius,
-                        onToggleUnits: { useCelsius = $0 },
-                        onSettings: { showSettings = true },
-                        showChrome: true
-                    )
-                    if let active {
-                        let status = BBQStatusPillModel.make(thermo: thermo, active: active)
-                        BBQStatusPill(label: status.label, tone: status.tone, pulse: status.pulse)
-                            .padding(.bottom, 4)
-                    }
-                }
-
-                ScrollView {
-                    VStack(spacing: 13) {
-                        if showMonitoring, let active {
+            if showMonitoring, let active {
+                VStack(spacing: 0) {
+                    BBQTopBar(onSettings: { showSettings = true }, showChrome: true)
+                    let status = BBQStatusPillModel.make(thermo: thermo, active: active)
+                    BBQStatusPill(label: status.label, tone: status.tone, pulse: status.pulse)
+                    freshnessLine(active).padding(.top, 3)
+                    ScrollView {
+                        VStack(spacing: 13) {
                             monitoringContent(active: active)
-                        } else {
-                            BBQAddDeviceScreen(
-                                pairing: isPairing,
-                                pairingLabel: pairingLabel,
-                                btOff: thermo.bluetoothOff,
-                                onScan: openScanner
-                            )
                         }
+                        .padding(.horizontal, 18)
+                        .padding(.top, 10)
+                        .padding(.bottom, 22)
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.top, showMonitoring ? 6 : 0)
-                    .padding(.bottom, 22)
                 }
+            } else {
+                // Onboarding / pairing fills the screen so it centers properly
+                // (a ScrollView would collapse the centering Spacers).
+                BBQAddDeviceScreen(
+                    pairing: isPairing,
+                    pairingLabel: pairingLabel,
+                    btOff: thermo.bluetoothOff,
+                    onScan: openScanner
+                )
+                .padding(.horizontal, 22)
             }
         }
         .bbqGlow(reached: active?.isReached ?? false)
@@ -76,6 +69,7 @@ struct ContentView: View {
             BBQSettingsSheet(
                 activeId: active?.id,
                 useCelsius: useCelsius,
+                onToggleUnits: { useCelsius = $0 },
                 onSelectProbe: { id in
                     activeId = id
                     showSettings = false
@@ -83,6 +77,11 @@ struct ContentView: View {
                 onAddDevice: {
                     showSettings = false
                     openScanner()
+                },
+                onRemoveProbe: { id in
+                    thermo.removeProbe(id)
+                    if activeId == id { activeId = thermo.probes.first?.id }
+                    if thermo.probes.isEmpty { showSettings = false }
                 },
                 onOpenLink: {
                     showSettings = false
@@ -135,6 +134,17 @@ struct ContentView: View {
                 }
             }
         )
+    }
+
+    @ViewBuilder
+    private func freshnessLine(_ probe: Probe) -> some View {
+        if let last = probe.lastReadingAt {
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                Text("Updated \(bbqRelativeAge(last))")
+                    .font(BBQ.ui(11.5, weight: .medium))
+                    .foregroundStyle(BBQ.fg3)
+            }
+        }
     }
 
     private func openScanner() {

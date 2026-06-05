@@ -22,6 +22,18 @@ enum BBQTemp {
     }
 }
 
+/// Human-readable "time since" for the last-reading freshness line.
+func bbqRelativeAge(_ date: Date) -> String {
+    let s = max(0, Int(Date().timeIntervalSince(date)))
+    if s < 2 { return "just now" }
+    if s < 60 { return "\(s)s ago" }
+    let m = s / 60
+    if m < 60 { return "\(m)m ago" }
+    let h = m / 60
+    if h < 24 { return "\(h)h ago" }
+    return "\(h / 24)d ago"
+}
+
 // MARK: - Primitives
 
 struct BBQSegmentedControl: View {
@@ -141,26 +153,21 @@ struct BBQTargetSlider: View {
 }
 
 struct BBQSheetHeader: View {
+    // No custom grabber — the sheet's native drag indicator provides it.
     let title: String
     var body: some View {
-        VStack(spacing: 14) {
-            Capsule()
-                .fill(BBQ.lineStrong)
-                .frame(width: 40, height: 5)
-            Text(title)
-                .font(BBQ.display(22))
-                .foregroundStyle(BBQ.fg1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.bottom, 4)
+        Text(title)
+            .font(BBQ.display(22))
+            .foregroundStyle(BBQ.fg1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
     }
 }
 
 // MARK: - Top bar
 
 struct BBQTopBar: View {
-    var useCelsius: Bool
-    var onToggleUnits: (Bool) -> Void
     var onSettings: () -> Void
     var showChrome: Bool
 
@@ -169,23 +176,16 @@ struct BBQTopBar: View {
             Logo(size: 21)
             Spacer()
             if showChrome {
-                HStack(spacing: 12) {
-                    BBQSegmentedControl(
-                        options: ["°F", "°C"],
-                        selection: useCelsius ? "°C" : "°F",
-                        onSelect: { onToggleUnits($0 == "°C") }
-                    )
-                    Button(action: onSettings) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 20, weight: .regular))
-                            .foregroundStyle(BBQ.fg2)
-                            .frame(width: 38, height: 38)
-                            .background(BBQ.surface, in: Circle())
-                            .overlay(Circle().strokeBorder(BBQ.line, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Settings")
+                Button(action: onSettings) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 20, weight: .regular))
+                        .foregroundStyle(BBQ.fg2)
+                        .frame(width: 38, height: 38)
+                        .background(BBQ.surface, in: Circle())
+                        .overlay(Circle().strokeBorder(BBQ.line, lineWidth: 1))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Settings")
             }
         }
         .padding(.horizontal, 20)
@@ -1028,8 +1028,10 @@ struct BBQSettingsSheet: View {
 
     let activeId: UUID?
     var useCelsius: Bool
+    var onToggleUnits: (Bool) -> Void
     var onSelectProbe: (UUID) -> Void
     var onAddDevice: () -> Void
+    var onRemoveProbe: (UUID) -> Void
     var onOpenLink: () -> Void
 
     var body: some View {
@@ -1037,7 +1039,26 @@ struct BBQSettingsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     BBQSheetHeader(title: "Settings")
+
+                    sectionLabel("Units")
+                    settingsGroup {
+                        HStack {
+                            Text("Temperature")
+                                .font(BBQ.ui(16, weight: .semibold))
+                                .foregroundStyle(BBQ.fg1)
+                            Spacer()
+                            BBQSegmentedControl(
+                                options: ["°F", "°C"],
+                                selection: useCelsius ? "°C" : "°F",
+                                onSelect: { onToggleUnits($0 == "°C") }
+                            )
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    }
+
                     sectionLabel("Devices")
+                        .padding(.top, 22)
                     settingsGroup {
                         ForEach(Array(thermo.probes.enumerated()), id: \.element.id) { index, probe in
                             if index > 0 { BBQHairline().padding(.leading, 16) }
@@ -1143,18 +1164,18 @@ struct BBQSettingsSheet: View {
     }
 
     private func probeDeviceRow(_ probe: Probe) -> some View {
-        Button {
-            onSelectProbe(probe.id)
-        } label: {
-            HStack {
-                HStack(spacing: 11) {
-                    Circle().fill(probe.color).frame(width: 10, height: 10)
-                    Text(probe.name)
-                        .font(BBQ.ui(16, weight: .semibold))
-                        .foregroundStyle(BBQ.fg1)
-                }
-                Spacer()
-                HStack(spacing: 7) {
+        HStack(spacing: 0) {
+            Button {
+                onSelectProbe(probe.id)
+            } label: {
+                HStack {
+                    HStack(spacing: 11) {
+                        Circle().fill(probe.color).frame(width: 10, height: 10)
+                        Text(probe.name)
+                            .font(BBQ.ui(16, weight: .semibold))
+                            .foregroundStyle(BBQ.fg1)
+                    }
+                    Spacer()
                     Text(probe.mode == .docked ? "Docked" : "\(BBQTemp.format(probe.tempF, celsius: useCelsius))\(BBQTemp.unit(useCelsius))")
                         .font(BBQ.ui(15, weight: .semibold))
                         .foregroundStyle(BBQ.fg3)
@@ -1164,11 +1185,25 @@ struct BBQSettingsSheet: View {
                             .foregroundStyle(BBQ.ember)
                     }
                 }
+                .padding(.vertical, 15)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 15)
+            .buttonStyle(.plain)
+
+            Button {
+                onRemoveProbe(probe.id)
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 16))
+                    .foregroundStyle(BBQ.danger)
+                    .padding(.leading, 14)
+                    .padding(.vertical, 15)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(probe.name)")
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
     }
 }
 

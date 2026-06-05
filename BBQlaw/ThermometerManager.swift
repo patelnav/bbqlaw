@@ -435,6 +435,7 @@ extension ThermometerManager: CBPeripheralDelegate {
             case .noReading:
                 mutate(id) { p in p.tempF = nil; p.mode = .noReading; p.targetReached = false; p.readingNote = "No probe reading" }
             }
+            mutate(id) { $0.lastReadingAt = Date() }
             onStateChange?()
         case ProbeGATT.batteryChar:
             let (base, probe) = decodeBattery(data)
