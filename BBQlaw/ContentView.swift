@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject private var thermo: ThermometerManager
     @EnvironmentObject private var bridgeLink: BridgeLinkManager
     @AppStorage("useCelsius") private var useCelsius = false
+    @AppStorage("armBaseBuzzer") private var armBaseBuzzer = false
 
     @State private var activeId: UUID?
     @State private var showScanner = false
@@ -81,8 +82,17 @@ struct ContentView: View {
                     thermo.removeProbe(id)
                     if activeId == id { activeId = thermo.probes.first?.id }
                     if thermo.probes.isEmpty { showSettings = false }
+                },
+                onArmBaseBuzzerChange: { enabled in
+                    syncDeviceTargetIfArmed(enabled: enabled)
+                },
+                onBaseVolumeChange: { level in
+                    applyBaseVolume(level)
                 }
             )
+        }
+        .onChange(of: active?.targetF) { _, _ in
+            syncDeviceTargetIfArmed(enabled: armBaseBuzzer)
         }
         .onChange(of: thermo.probes.count) { oldCount, newCount in
             syncActiveProbe(oldCount: oldCount, newCount: newCount)
@@ -164,6 +174,23 @@ struct ContentView: View {
             activeId = added.id
         } else if activeId == nil {
             activeId = thermo.probes.first?.id
+        }
+    }
+
+    private func syncDeviceTargetIfArmed(enabled: Bool) {
+        guard enabled,
+              let probe = active,
+              probe.authState == .authed,
+              let target = probe.targetF else { return }
+        thermo.setDeviceTarget(probe.id, highF: target)
+    }
+
+    private func applyBaseVolume(_ level: Int) {
+        guard let probe = active, probe.authState == .authed else { return }
+        if level == 0 {
+            thermo.setDeviceBuzzer(probe.id, muted: true)
+        } else {
+            thermo.setDeviceBuzzer(probe.id, muted: false, volume: level)
         }
     }
 }

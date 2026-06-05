@@ -48,6 +48,8 @@ final class ThermometerManager: NSObject, ObservableObject {
     // MARK: Internals
     private let defaults = UserDefaults.standard
     private let log = Logger(subsystem: "com.bbqlaw.app", category: "ble")
+    /// °F multiplier for device target frames (flip to 10.0 if on-device test alarms early).
+    private let deviceTempScale = 100.0
     private var central: CBCentralManager!
     private var sessions: [UUID: ProbeSession] = [:]
     private var persisted: [String: PersistedCook] = [:]
@@ -148,10 +150,65 @@ final class ThermometerManager: NSObject, ObservableObject {
         evaluateAlarm(id); saveCook(id); onStateChange?()
     }
 
+    /// Push the probe's target to the base station so its physical buzzer arms at temp.
+    func setDeviceTarget(_ id: UUID, highF: Double, lowF: Double? = nil) {
+        guard let probe = probes.first(where: { $0.id == id }),
+              probe.authState == .authed,
+              let session = sessions[id],
+              let ctrl = session.controlCharacteristic else { return }
+        let probeMask: UInt8 = 0x01
+        let mode: UInt8
+        let loBytes: [UInt8]
+        if let lowF {
+            mode = 0x11
+            loBytes = leBytes(lowF)
+        } else {
+            mode = 0x10
+            loBytes = [0x00, 0x00]
+        }
+        let frame1Body: [UInt8] = [probeMask, mode] + leBytes(highF) + loBytes + [0x0a, 0x1b]
+        let frame2Body: [UInt8] = [probeMask, 0x00, 0x00, 0x00, 0x00]
+        let payload = frame(0x01, frame1Body) + frame(0x23, frame2Body)
+        let payloadHex = hex(payload)
+        log.notice("deviceTarget[\(id.uuidString, privacy: .public)]: -> \(payloadHex, privacy: .public)")
+        session.peripheral.writeValue(Data(payload), for: ctrl, type: .withResponse)
+    }
+
+    /// Mute or set base-station buzzer volume (1 = low … 3 = high).
+    func setDeviceBuzzer(_ id: UUID, muted: Bool, volume: Int = 2) {
+        guard let probe = probes.first(where: { $0.id == id }),
+              probe.authState == .authed,
+              let session = sessions[id],
+              let ctrl = session.controlCharacteristic else { return }
+        let payload: [UInt8]
+        if muted {
+            payload = [0x03, 0x0b, 0x11, 0x01]
+        } else {
+            let vol = min(3, max(1, volume))
+            payload = [0x03, 0x0b, 0x5a, UInt8(vol)]
+        }
+        let payloadHex = hex(payload)
+        log.notice("deviceBuzzer[\(id.uuidString, privacy: .public)]: -> \(payloadHex, privacy: .public)")
+        session.peripheral.writeValue(Data(payload), for: ctrl, type: .withResponse)
+    }
+
     // MARK: Helpers
     private func mutate(_ id: UUID, _ block: (inout Probe) -> Void) {
         guard let idx = probes.firstIndex(where: { $0.id == id }) else { return }
         block(&probes[idx])
+    }
+
+    private func frame(_ type: UInt8, _ body: [UInt8]) -> [UInt8] {
+        [UInt8(1 + body.count), type] + body
+    }
+
+    private func leBytes(_ f: Double) -> [UInt8] {
+        let scaled = UInt16(min(65535, max(0, Int(f * deviceTempScale))))
+        return [UInt8(scaled & 0xFF), UInt8(scaled >> 8)]
+    }
+
+    private func hex(_ bytes: [UInt8]) -> String {
+        bytes.map { String(format: "%02x", $0) }.joined(separator: " ")
     }
 
     private func makeProbe(id: UUID, advertisedName: String?) -> Probe {

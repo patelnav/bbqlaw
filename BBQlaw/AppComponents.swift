@@ -1104,6 +1104,11 @@ struct BBQSettingsSheet: View {
     var onSelectProbe: (UUID) -> Void
     var onAddDevice: () -> Void
     var onRemoveProbe: (UUID) -> Void
+    var onArmBaseBuzzerChange: (Bool) -> Void
+    var onBaseVolumeChange: (Int) -> Void
+
+    @AppStorage("armBaseBuzzer") private var armBaseBuzzer = false
+    @AppStorage("baseBuzzerLevel") private var baseBuzzerLevel = 2
 
     var body: some View {
         NavigationStack {
@@ -1150,6 +1155,56 @@ struct BBQSettingsSheet: View {
                             .padding(.vertical, 15)
                         }
                         .buttonStyle(.plain)
+                    }
+
+                    if hasAuthedProbe {
+                        sectionLabel("Base station")
+                            .padding(.top, 22)
+                        settingsGroup {
+                            Toggle(isOn: $armBaseBuzzer) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 7) {
+                                        Text("Beep the base at target")
+                                            .font(BBQ.ui(16, weight: .semibold))
+                                            .foregroundStyle(BBQ.fg1)
+                                        Text("Experimental")
+                                            .font(BBQ.ui(10, weight: .bold))
+                                            .tracking(0.04 * 10)
+                                            .textCase(.uppercase)
+                                            .foregroundStyle(BBQ.warning)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(BBQ.warning.opacity(0.14), in: Capsule())
+                                    }
+                                    Text("Arms your thermometer's own buzzer at the target — verify it alarms at the right temperature.")
+                                        .font(BBQ.ui(13))
+                                        .foregroundStyle(BBQ.fg3)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .tint(BBQ.ember)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .onChange(of: armBaseBuzzer) { _, on in
+                                onArmBaseBuzzerChange(on)
+                            }
+
+                            BBQHairline().padding(.leading, 16)
+
+                            HStack {
+                                Text("Base volume")
+                                    .font(BBQ.ui(16, weight: .semibold))
+                                    .foregroundStyle(BBQ.fg1)
+                                Spacer(minLength: 8)
+                                BBQSegmentedControl(
+                                    options: ["Mute", "Low", "Med", "High"],
+                                    selection: baseVolumeLabel,
+                                    onSelect: { selectBaseVolume($0) }
+                                )
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                        }
                     }
 
                     sectionLabel("Automations")
@@ -1243,6 +1298,31 @@ struct BBQSettingsSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    private var hasAuthedProbe: Bool {
+        thermo.probes.contains { $0.connection == .connected && $0.authState == .authed }
+    }
+
+    private var baseVolumeLabel: String {
+        switch baseBuzzerLevel {
+        case 0: return "Mute"
+        case 1: return "Low"
+        case 3: return "High"
+        default: return "Med"
+        }
+    }
+
+    private func selectBaseVolume(_ label: String) {
+        let level: Int
+        switch label {
+        case "Mute": level = 0
+        case "Low": level = 1
+        case "High": level = 3
+        default: level = 2
+        }
+        baseBuzzerLevel = level
+        onBaseVolumeChange(level)
     }
 
     private func sectionLabel(_ text: String) -> some View {
