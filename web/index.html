@@ -1,149 +1,202 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>BBQlaw — local meat thermometer app for iOS</title>
+<title>BBQlaw — your probe's temperature, off the cloud</title>
 <meta name="description" content="A free, local-only iOS app for wireless BLE meat thermometers. No account, no cloud — your iPhone reads the probe directly over Bluetooth." />
 <meta property="og:title" content="BBQlaw" />
 <meta property="og:description" content="Your thermometer's temperature, on your phone, off the cloud." />
 <meta property="og:type" content="website" />
+<link rel="stylesheet" href="colors_and_type.css" />
 <style>
-  :root {
-    --bg: #0e0b0a;
-    --ember: #ff6b2c;
-    --ember-deep: #d83a1f;
-    --ink: #f6efe9;
-    --muted: #b39c8d;
-    --card: rgba(255,255,255,0.04);
-    --line: rgba(255,255,255,0.09);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { -webkit-font-smoothing: antialiased; }
-  body {
-    font-family: ui-sans-serif, -apple-system, "SF Pro Text", system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-    min-height: 100vh;
-    line-height: 1.5;
-    background-image:
-      radial-gradient(120% 80% at 50% -10%, rgba(255,107,44,0.22), transparent 60%),
-      radial-gradient(90% 60% at 80% 0%, rgba(216,58,31,0.14), transparent 55%);
-  }
-  .wrap { max-width: 720px; margin: 0 auto; padding: clamp(48px, 12vh, 140px) 24px 64px; }
-  .mark {
-    display: inline-flex; align-items: center; gap: 10px;
-    font-weight: 700; font-size: 20px; letter-spacing: -0.02em;
-  }
-  .mark .glyph { font-size: 22px; filter: saturate(1.2); }
-  h1 {
-    margin-top: 40px;
-    font-size: clamp(38px, 8vw, 66px);
-    line-height: 1.02;
-    letter-spacing: -0.03em;
-    font-weight: 760;
-  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: var(--font-ui); background: var(--bg); color: var(--fg1); line-height: 1.5;
+    -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .mark { display: inline-flex; align-items: center; font: 800 24px var(--font-display); letter-spacing: -.03em; }
+  .mark .q { display: inline-flex; margin: 0 -1px; }
+  .mark .law { color: var(--ember); }
+  .navlinks { display: flex; align-items: center; gap: 26px; font: 600 15px var(--font-ui); color: var(--fg2); }
+  .navlinks a { text-decoration: none; }
+  .navlinks a:hover { color: var(--ember); }
+  .soon { font: 600 13px var(--font-ui); color: var(--ember); background: var(--ember-tint);
+    padding: 7px 13px; border-radius: 999px; }
+
+  .hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: center;
+    padding: 56px 0 40px; }
+  h1 { font: 800 clamp(40px, 6vw, 66px)/1.02 var(--font-display); letter-spacing: -.03em; margin: 0; }
   h1 .accent { color: var(--ember); }
-  .lede {
-    margin-top: 22px;
-    font-size: clamp(17px, 2.4vw, 20px);
-    color: var(--muted);
-    max-width: 52ch;
+  .lede { margin: 22px 0 0; font-size: 19px; color: var(--fg2); max-width: 46ch; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line);
+    background: var(--surface); border-radius: 999px; padding: 9px 15px; font: 600 14px var(--font-ui); }
+  .chip svg { color: var(--ember); }
+  .ctarow { display: flex; align-items: center; gap: 16px; margin-top: 34px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 9px; border: none; border-radius: 16px;
+    padding: 15px 24px; font: 700 16px var(--font-ui); cursor: pointer; text-decoration: none;
+    background: var(--ember); color: #fff; transition: transform .12s var(--ease-out); white-space: nowrap; }
+  .btn:active { transform: scale(.98); }
+  .btn.ghost { background: transparent; color: var(--fg1); border: 1.5px solid var(--line-strong); }
+  .statusline { display: inline-flex; align-items: center; gap: 9px; margin-top: 26px; font: 600 14px var(--font-ui); color: var(--fg2); }
+  .statusline .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ember); animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(227,97,31,.5); } 70% { box-shadow: 0 0 0 9px rgba(227,97,31,0); } 100% { box-shadow: 0 0 0 0 rgba(227,97,31,0); } }
+
+  .phone { width: 290px; justify-self: center; border-radius: 42px; background: #1b140f; padding: 9px;
+    border: 1px solid var(--line-strong); }
+  .screen { border-radius: 34px; overflow: hidden; background: var(--bg); padding: 26px 22px 30px;
+    position: relative; min-height: 540px; display: flex; flex-direction: column; }
+  .screen .nub { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 84px; height: 22px; background: #1b140f; border-radius: 12px; }
+  .scr-top { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+  .scr-pill { align-self: center; margin: 14px auto 0; display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 12px; border-radius: 999px; background: var(--ember-tint); color: var(--ember); font: 600 11.5px var(--font-ui); white-space: nowrap; }
+  .scr-pill .d { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); }
+  .scr-hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .scr-num { font: 800 104px/0.85 var(--font-display); letter-spacing: -.04em; color: var(--ember); font-variant-numeric: tabular-nums; }
+  .scr-num span { font: 700 22px var(--font-display); color: var(--fg3); }
+  .scr-bar { width: 150px; height: 8px; border-radius: 8px; background: var(--bg-sunken); margin-top: 18px; overflow: hidden; }
+  .scr-bar i { display: block; width: 62%; height: 100%; background: linear-gradient(90deg, var(--temp-warm), var(--ember)); }
+  .scr-cap { font: 500 13px var(--font-ui); color: var(--fg3); margin-top: 10px; }
+  .scr-chips { display: flex; gap: 9px; margin-top: 16px; }
+  .scr-chip { flex: 1; padding: 10px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+  .scr-chip b { display: block; font: 700 10px var(--font-ui); letter-spacing: .07em; text-transform: uppercase; color: var(--fg3); }
+  .scr-chip s { text-decoration: none; font: 800 16px var(--font-display); }
+
+  section.how { padding: 64px 0; }
+  .ovl { font: 700 13px var(--font-ui); letter-spacing: .13em; text-transform: uppercase; color: var(--fg3); }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 24px; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 24px; }
+  .step .ic { width: 48px; height: 48px; border-radius: 13px; background: var(--ember-tint); display: grid; place-items: center; color: var(--ember); margin-bottom: 16px; }
+  .step h3 { margin: 0 0 6px; font: 700 20px var(--font-display); }
+  .step p { margin: 0; color: var(--fg2); font-size: 15px; }
+
+  .band { background: var(--surface-2); border: 1px solid var(--line); border-radius: 28px; padding: 40px;
+    display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center; margin-bottom: 24px; }
+  .band h2 { font: 800 30px var(--font-display); letter-spacing: -.02em; margin: 0 0 10px; }
+  .band p { margin: 0; color: var(--fg2); max-width: 52ch; }
+  .quote { font: 500 17px/1.45 var(--font-ui); color: var(--fg1); background: var(--bg); border-radius: 18px;
+    padding: 20px 22px; border-left: 3px solid var(--ember); max-width: 300px; }
+
+  footer { border-top: 1px solid var(--line); padding: 32px 0 56px; color: var(--fg3); font-size: 13.5px; }
+  footer a { color: var(--fg2); }
+  .footrow { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .disc { margin-top: 14px; max-width: 60ch; }
+
+  @media (max-width: 820px) {
+    .hero { grid-template-columns: 1fr; gap: 36px; }
+    .phone { order: -1; }
+    .steps { grid-template-columns: 1fr; }
+    .band { grid-template-columns: 1fr; }
+    .navlinks .hidesm { display: none; }
   }
-  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 36px; }
-  .chip {
-    border: 1px solid var(--line);
-    background: var(--card);
-    border-radius: 999px;
-    padding: 9px 15px;
-    font-size: 14px;
-    color: var(--ink);
-  }
-  .chip b { color: var(--ember); font-weight: 600; }
-  .status {
-    margin-top: 44px;
-    display: inline-flex; align-items: center; gap: 9px;
-    padding: 11px 18px;
-    border-radius: 12px;
-    background: linear-gradient(180deg, rgba(255,107,44,0.16), rgba(255,107,44,0.06));
-    border: 1px solid rgba(255,107,44,0.35);
-    font-weight: 600; font-size: 15px;
-  }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ember);
-         box-shadow: 0 0 0 0 rgba(255,107,44,0.6); animation: pulse 2s infinite; }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(255,107,44,0.5); }
-    70% { box-shadow: 0 0 0 10px rgba(255,107,44,0); }
-    100% { box-shadow: 0 0 0 0 rgba(255,107,44,0); }
-  }
-  .how { margin-top: 64px; display: grid; gap: 20px; }
-  .how h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 600; }
-  .rows { display: grid; gap: 14px; }
-  .row {
-    border: 1px solid var(--line);
-    background: var(--card);
-    border-radius: 14px;
-    padding: 18px 20px;
-  }
-  .row .t { font-weight: 620; }
-  .row .d { color: var(--muted); font-size: 15px; margin-top: 4px; }
-  footer {
-    margin-top: 72px;
-    padding-top: 24px;
-    border-top: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 13px;
-  }
-  footer a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
-  footer a:hover { color: var(--ember); }
-  .disc { margin-top: 12px; font-size: 12.5px; color: #7d6b5e; }
 </style>
 </head>
-<body>
-  <main class="wrap">
-    <div class="mark"><span class="glyph">🔥🐾</span> BBQlaw</div>
+<body class="bbq-glow">
+<div class="wrap">
+  <nav>
+    <span class="mark">BB<span class="q" id="navmark"></span><span class="law">law</span></span>
+    <div class="navlinks">
+      <a href="#how" class="hidesm">How it works</a>
+      <a href="openclaw/">Link your agent</a>
+      <span class="soon">Coming soon</span>
+    </div>
+  </nav>
 
-    <h1>Your probe's temperature.<br>On your phone. <span class="accent">Off the cloud.</span></h1>
-
-    <p class="lede">
-      A free iOS app for wireless BLE meat thermometers. Your iPhone reads the
-      probe directly over Bluetooth — no account, no sign-in, no servers in the middle.
-      Just the number you're cooking to.
-    </p>
-
-    <div class="chips">
-      <span class="chip"><b>100%</b> local Bluetooth</span>
-      <span class="chip"><b>Alerts</b> in the background</span>
-      <span class="chip"><b>Free</b>, no account</span>
+  <header class="hero">
+    <div>
+      <h1>Your probe's temperature.<br>On your phone. <span class="accent">Off the cloud.</span></h1>
+      <p class="lede">A free iOS app for wireless BLE meat thermometers. Your iPhone reads the probe directly over Bluetooth — no account, no sign-in, no servers in the middle. Just the number you're cooking to.</p>
+      <div class="chips">
+        <span class="chip" id="chip1">100% local Bluetooth</span>
+        <span class="chip" id="chip2">Alerts in the background</span>
+        <span class="chip" id="chip3">Free, no account</span>
+      </div>
+      <div class="ctarow">
+        <a class="btn" href="#">Join the TestFlight</a>
+        <a class="btn ghost" href="#how">See how it works</a>
+      </div>
+      <div class="statusline"><span class="dot"></span> Coming soon to TestFlight</div>
     </div>
 
-    <div class="status"><span class="dot"></span> Coming soon to TestFlight</div>
-
-    <section class="how">
-      <h2>How it works</h2>
-      <div class="rows">
-        <div class="row">
-          <div class="t">Connect</div>
-          <div class="d">Wake your probe and BBQlaw finds it over Bluetooth LE.</div>
+    <div class="phone">
+      <div class="screen">
+        <div class="nub"></div>
+        <div class="scr-top">
+          <span class="mark" style="font-size:17px">BB<span class="q" id="scrmark"></span><span class="law">law</span></span>
+          <span style="font:700 13px var(--font-ui);color:var(--fg3)">°F</span>
         </div>
-        <div class="row">
-          <div class="t">Watch</div>
-          <div class="d">Live temperature and battery, big and readable, in °F or °C.</div>
+        <div class="scr-pill"><span class="d"></span> Brisket · Connected</div>
+        <div class="scr-hero">
+          <div class="scr-num">168<span>°F</span></div>
+          <div class="scr-bar"><i></i></div>
+          <div class="scr-cap">Target 203°F · 35° to go</div>
         </div>
-        <div class="row">
-          <div class="t">Get pinged</div>
-          <div class="d">Set a target and your phone alerts you when the food hits it — even when the app is closed.</div>
+        <div class="scr-chips">
+          <div class="scr-chip"><b>Probe</b><s>72%</s></div>
+          <div class="scr-chip"><b>Base</b><s>88%</s></div>
         </div>
       </div>
-    </section>
+    </div>
+  </header>
 
-    <footer>
-      Built for cooks who don't want another login. Questions: <a href="mailto:hello@bbqlaw.app">hello@bbqlaw.app</a>
-      <div class="disc">
-        BBQlaw is an independent project. It is not affiliated with, endorsed by, or
-        sponsored by any thermometer manufacturer.
+  <section class="how" id="how">
+    <div class="ovl">How it works</div>
+    <div class="steps">
+      <div class="step">
+        <div class="ic" id="ic1"></div>
+        <h3>Connect</h3>
+        <p>Wake your probe and BBQlaw finds it over Bluetooth LE. No vendor app, no login.</p>
       </div>
-    </footer>
-  </main>
+      <div class="step">
+        <div class="ic" id="ic2"></div>
+        <h3>Watch</h3>
+        <p>Live temperature and battery — big, readable, in °F or °C — from across the yard.</p>
+      </div>
+      <div class="step">
+        <div class="ic" id="ic3"></div>
+        <h3>Get pinged</h3>
+        <p>Set a target and your phone alerts you when the food hits it — even when the app is closed.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="band">
+      <div>
+        <div class="ovl" style="margin-bottom:10px">Optional · OpenClaw bridge</div>
+        <h2>Hand the cook to your agent.</h2>
+        <p>Forward live readings so your own OpenClaw agent can watch the cook and message someone when it's done. Your phone stays the Bluetooth bridge — the reading never goes through anyone else's account.</p>
+        <a class="btn ghost" href="openclaw/" style="margin-top:20px">Pair your probe →</a>
+      </div>
+      <div class="quote">"Watch the brisket. Message Priya on WhatsApp when it hits 203, and tell me if the probe drops out for 5 minutes."</div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footrow">
+      <span class="mark" style="font-size:18px">BB<span class="q" id="footmark"></span><span class="law">law</span></span>
+      <span>Questions: <a href="mailto:hello@bbqlaw.app">hello@bbqlaw.app</a></span>
+    </div>
+    <div class="disc">BBQlaw is an independent project. It is not affiliated with, endorsed by, or sponsored by any thermometer manufacturer.</div>
+  </footer>
+</div>
+
+<script>
+  const damper = (size, fill) => `<svg width="${size}" height="${size}" viewBox="0 0 120 120">${fill.indexOf('url')===0?'<defs><linearGradient id="we" x1="10%" y1="5%" x2="90%" y2="100%"><stop offset="0" stop-color="#F7B23E"/><stop offset=".55" stop-color="#E3611F"/><stop offset="1" stop-color="#C2410C"/></linearGradient></defs>':''}<g transform="rotate(-45 60 60)"><path fill="${fill}" d="M52 92 L68 92 L72 112 Q72 115 69 115 L51 115 Q48 115 48 112 Z"/><path fill="${fill}" fill-rule="evenodd" d="M16 56 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0 Z M35.5 41 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M65.5 41 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M35.5 71 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M65.5 71 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z"/></g></svg>`;
+  navmark.innerHTML = damper(25, 'url(#we)');
+  scrmark.innerHTML = damper(18, 'url(#we)');
+  footmark.innerHTML = damper(19, 'url(#we)');
+  const icon = (inner) => `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  ic1.innerHTML = icon('<path d="m7 7 10 10-5 5V2l5 5L7 17"/>');
+  ic2.innerHTML = icon('<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4 4 0 1 0 5 0z"/>');
+  ic3.innerHTML = icon('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>');
+  chip1.insertAdjacentHTML('afterbegin', icon('<path d="m7 7 10 10-5 5V2l5 5L7 17"/>'));
+  chip2.insertAdjacentHTML('afterbegin', icon('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'));
+  chip3.insertAdjacentHTML('afterbegin', icon('<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>'));
+</script>
 </body>
 </html>

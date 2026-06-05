@@ -16,12 +16,14 @@ enum BridgeKeychain {
         let deviceId: String
         let deviceToken: String
         let ingestURL: String
+        let readerToken: String?
     }
 
     struct Credentials: Equatable {
         let deviceId: String
         let deviceToken: String
         let ingestURL: URL
+        let readerToken: String?
     }
 
     static var credentials: Credentials? {
@@ -31,7 +33,8 @@ enum BridgeKeychain {
             return Credentials(
                 deviceId: stored.deviceId,
                 deviceToken: stored.deviceToken,
-                ingestURL: ingestURL
+                ingestURL: ingestURL,
+                readerToken: stored.readerToken
             )
         }
         return readLegacyCredentials()
@@ -40,12 +43,13 @@ enum BridgeKeychain {
     static var isLinked: Bool { credentials != nil }
 
     @discardableResult
-    static func save(deviceId: String, deviceToken: String, ingestURL: URL) -> Bool {
+    static func save(deviceId: String, deviceToken: String, ingestURL: URL, readerToken: String? = nil) -> Bool {
         clearLegacyItems()
         let stored = StoredCredentials(
             deviceId: deviceId,
             deviceToken: deviceToken,
-            ingestURL: ingestURL.absoluteString
+            ingestURL: ingestURL.absoluteString,
+            readerToken: readerToken
         )
         guard let data = try? JSONEncoder().encode(stored) else { return false }
         return writeData(data, account: account)
@@ -66,7 +70,7 @@ enum BridgeKeychain {
             let ingestURL = URL(string: ingestString)
         else { return nil }
         _ = save(deviceId: deviceId, deviceToken: deviceToken, ingestURL: ingestURL)
-        return Credentials(deviceId: deviceId, deviceToken: deviceToken, ingestURL: ingestURL)
+        return Credentials(deviceId: deviceId, deviceToken: deviceToken, ingestURL: ingestURL, readerToken: nil)
     }
 
     private static func readLegacyString(_ account: String) -> String? {

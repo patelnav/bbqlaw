@@ -15,3 +15,9 @@ BBQlaw.xcodeproj/
 relay/node_modules/
 relay/.dev.vars
 relay/.wrangler/
+
+# Imported research / scratchpad history (not part of the repo)
+history/
+
+# Tooling scratch
+.playwright-mcp/

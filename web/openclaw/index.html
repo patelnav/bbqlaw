@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BBQlaw → OpenClaw — live cook feed</title>
+<meta name="description" content="The agent-facing readout OpenClaw reads each time it checks in on a BBQlaw cook." />
+<link rel="stylesheet" href="../colors_and_type.css" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: var(--font-ui); background: var(--bg); color: var(--fg1); line-height: 1.5;
+    -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  .feed { max-width: 580px; margin: 0 auto; padding: 26px 20px 64px; }
+
+  .bar { display: flex; align-items: center; gap: 10px; padding: 2px 0 4px; }
+  .mark { display: inline-flex; align-items: center; font: 800 19px var(--font-display); letter-spacing: -.03em; }
+  .mark .q { display: inline-flex; margin: 0 -1px; }
+  .mark .law { color: var(--ember); }
+  .arrow { color: var(--fg3); font: 600 15px var(--font-ui); }
+  .oc { font: 800 16px var(--font-display); color: var(--fg1); letter-spacing: -.01em; }
+  .stream { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font: 600 12.5px var(--font-ui); color: var(--ember); }
+  .stream .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--ember); animation: pulse 1.8s var(--ease-in-out) infinite; }
+  .stream.off { color: var(--fg3); }
+  .stream.off .pulse { background: var(--fg3); animation: none; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
+  @media (prefers-reduced-motion: reduce) { .stream .pulse { animation: none; } }
+
+  .empty, .wait { margin-top: 18px; border: 1px solid var(--line); background: var(--surface);
+    border-radius: 16px; padding: 22px 20px; text-align: center; }
+  .empty h2, .wait h2 { margin: 0 0 8px; font: 800 20px var(--font-display); letter-spacing: -.02em; }
+  .empty p, .wait p { margin: 0; font-size: 15px; color: var(--fg2); }
+  .hidden { display: none !important; }
+
+  .context { margin-top: 18px; border: 1px solid var(--line); border-left: 3px solid var(--ember);
+    background: var(--surface); border-radius: 14px; padding: 16px 18px; }
+  .context .k { font: 700 11px var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--ember); }
+  .context p { margin: 7px 0 0; font-size: 15px; color: var(--fg2); }
+  .context p b { color: var(--fg1); font-weight: 700; }
+
+  .shead { display: flex; align-items: baseline; justify-content: space-between; margin: 30px 2px 12px; }
+  .shead h2 { margin: 0; font: 800 14px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--fg3); }
+  .shead .meta { font: 500 12.5px var(--font-mono); color: var(--fg3); white-space: nowrap; }
+
+  .probes { display: grid; gap: 11px; }
+  .probe { border: 1px solid var(--line); background: var(--surface); border-radius: 16px; padding: 16px 18px; }
+  .p-head { display: flex; align-items: center; gap: 9px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--status-idle); }
+  .p-name { font: 800 17px var(--font-display); color: var(--fg1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .p-tag { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font: 700 11px var(--font-ui);
+    letter-spacing: .06em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; flex: none; }
+  .p-tag svg { width: 13px; height: 13px; }
+  .p-tag.reached { background: var(--ember-tint); color: var(--ember); }
+  .p-tag.climbing { background: var(--slate-tint); color: var(--status-idle); }
+  .p-tag.docked { background: var(--bg-sunken); color: var(--fg2); }
+  .p-tag.waiting { background: var(--bg-sunken); color: var(--fg3); }
+  .p-body { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-top: 12px; }
+  .p-temp { font: 800 44px/0.9 var(--font-display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; flex: none; color: var(--fg1); }
+  .p-temp.reached { color: var(--ember); }
+  .p-temp.muted { color: var(--fg3); font-size: 28px; }
+  .p-temp .u { font: 700 18px var(--font-display); color: var(--fg3); margin-left: 1px; }
+  .p-temp .c { display: block; font: 500 12px var(--font-mono); color: var(--fg3); margin-top: 4px; letter-spacing: .02em; }
+  .p-meta { text-align: right; flex: 1; min-width: 0; }
+  .p-meta .line { font: 500 14px var(--font-ui); color: var(--fg2); }
+  .p-meta .line b { color: var(--fg1); font-weight: 700; }
+  .p-meta .ago { font: 500 12px var(--font-mono); color: var(--fg3); margin-top: 4px; white-space: nowrap; }
+
+  .log { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 16px;
+    background: var(--surface); overflow: hidden; }
+  .evt { display: flex; gap: 13px; padding: 13px 16px; border-top: 1px solid var(--line); align-items: baseline; }
+  .evt:first-child { border-top: none; }
+  .evt time { font: 600 12.5px var(--font-mono); color: var(--fg3); flex: none; width: 66px; }
+  .evt .txt { font-size: 14.5px; color: var(--fg2); }
+  .evt .txt b { color: var(--fg1); font-weight: 700; }
+  .evt.fresh { background: var(--ember-tint); }
+  .evt.fresh time { color: var(--ember); }
+  .since { display: flex; align-items: center; gap: 12px; padding: 9px 16px; background: var(--surface-2);
+    border-top: 1px solid var(--line); font: 600 11px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--fg3); }
+  .since::before, .since::after { content: ""; height: 1px; background: var(--line-strong); flex: 1; }
+
+  footer { margin-top: 26px; font-size: 13px; color: var(--fg3); text-align: center; line-height: 1.6; }
+  footer b { color: var(--fg2); font-weight: 600; }
+  footer a { color: var(--fg2); }
+</style>
+</head>
+<body class="bbq-glow">
+<div class="feed">
+  <div class="bar">
+    <a href="../" style="text-decoration:none"><span class="mark">BB<span class="q" id="navmark"></span><span class="law">law</span></span></a>
+    <span class="arrow">→</span>
+    <span class="oc">OpenClaw</span>
+    <span class="stream off" id="stream"><span class="pulse"></span><span id="stream-label">offline</span></span>
+  </div>
+
+  <div id="panel-empty" class="empty">
+    <h2>No cook linked</h2>
+    <p>Open this from the BBQlaw app's Link screen. Your share URL looks like <code style="font:500 13px var(--font-mono)">bbqlaw.app/openclaw#…</code></p>
+  </div>
+
+  <div id="panel-live" class="hidden">
+    <div class="context">
+      <div class="k">Context for the agent</div>
+      <p id="context-text">A cook connected their BBQlaw thermometer so you can keep an eye on this cook. New
+      readings stream in roughly every 10&nbsp;seconds — check the timestamps to see what's changed
+      since you last looked. They'd like you to <b>track the cook and let them know when something
+      happens</b>: a probe hits its target, stalls, or gets pulled.</p>
+    </div>
+
+    <div id="panel-wait" class="wait hidden">
+      <h2>Waiting for readings</h2>
+      <p>The phone hasn't pushed a snapshot yet. Keep this page open — it'll update automatically.</p>
+    </div>
+
+    <div id="panel-now">
+      <div class="shead">
+        <h2>Now</h2>
+        <span class="meta" id="fresh">—</span>
+      </div>
+      <div class="probes" id="probes"></div>
+    </div>
+
+    <div id="panel-history">
+      <div class="shead">
+        <h2>History</h2>
+        <span class="meta">most recent first</span>
+      </div>
+      <ol class="log" id="log"></ol>
+    </div>
+  </div>
+
+  <footer>
+    This panel is what OpenClaw reads on each check-in. <br />
+    Ask it to <b>watch a probe</b> or <b>message someone</b> when a target is reached. · <a href="../">BBQlaw</a>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const API = "https://bbqlaw.app";
+  const POLL_MS = 15000;
+  const LS_KEY = "bbqlaw_openclaw_last_seen";
+
+  const damper = (s, f) => `<svg width="${s}" height="${s}" viewBox="0 0 120 120">${f.indexOf("url")===0?'<defs><linearGradient id="we" x1="10%" y1="5%" x2="90%" y2="100%"><stop offset="0" stop-color="#F7B23E"/><stop offset=".55" stop-color="#E3611F"/><stop offset="1" stop-color="#C2410C"/></linearGradient></defs>':""}<g transform="rotate(-45 60 60)"><path fill="${f}" d="M52 92 L68 92 L72 112 Q72 115 69 115 L51 115 Q48 115 48 112 Z"/><path fill="${f}" fill-rule="evenodd" d="M16 56 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0 Z M35.5 41 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M65.5 41 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M35.5 71 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M65.5 71 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z"/></g></svg>`;
+  document.getElementById("navmark").innerHTML = damper(20, "url(#we)");
+
+  const sealCheck = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/><path d="M7.8 12.3l2.7 2.7 5.4-5.8" fill="none" stroke="#fff" stroke-width="2.2"/></svg>`;
+
+  let snapshot = null;
+  let events = [];
+  let sessionMaxTs = 0;
+  let pollTimer = null;
+  let tickTimer = null;
+
+  function readerToken() {
+    return (location.hash || "").replace(/^#/, "").trim();
+  }
+
+  function esc(s) {
+    if (s == null) return "";
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function f2c(f) {
+    if (f == null || !Number.isFinite(f)) return null;
+    return Math.round((f - 32) * 5 / 9);
+  }
+
+  function relSeconds(sec) {
+    const s = Math.max(0, sec);
+    if (s < 45) return Math.round(s) + "s ago";
+    const m = s / 60;
+    if (m < 60) return Math.round(m) + " min ago";
+    return Math.round(m / 60) + " hr ago";
+  }
+
+  function clock(tsSec) {
+    const d = new Date(tsSec * 1000);
+    let h = d.getHours();
+    const m = d.getMinutes();
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return h + ":" + (m < 10 ? "0" + m : m) + " " + ap;
+  }
+
+  function probeState(p) {
+    const mode = p.mode || "noReading";
+    if (mode === "docked") return "docked";
+    if (mode === "noReading" || !p.connected) return "waiting";
+    const temp = p.tempF;
+    const target = p.targetF;
+    if (temp != null && target != null && temp >= target) return "reached";
+    if (mode === "live" && temp != null) return "climbing";
+    return "waiting";
+  }
+
+  const tagLabel = { reached: "reached", climbing: "climbing", docked: "docked", waiting: "waiting" };
+
+  function probeColor(p) {
+    if (p.color) return p.color;
+    const st = probeState(p);
+    if (st === "reached") return "var(--ember)";
+    if (st === "climbing") return "var(--status-idle)";
+    return "var(--fg3)";
+  }
+
+  function formatTemp(p) {
+    const st = probeState(p);
+    const temp = p.tempF;
+    if (temp == null || st === "docked" || st === "waiting") {
+      return { main: "—", cls: "muted", c: null };
+    }
+    return {
+      main: String(Math.round(temp)),
+      cls: st === "reached" ? "reached" : "",
+      c: f2c(temp),
+    };
+  }
+
+  function metaLine(p) {
+    const st = probeState(p);
+    const target = p.targetF;
+    if (st === "reached" && target != null) {
+      return `Target <b>${Math.round(target)}°F</b> · held`;
+    }
+    if (st === "docked") return "In the base · not reading";
+    if (st === "waiting") {
+      if (!p.connected) return "Not connected";
+      if (p.tempF == null) return "Waiting for a reading";
+      return "No active reading";
+    }
+    if (target != null && p.tempF != null) {
+      const toGo = Math.max(0, Math.round(target - p.tempF));
+      return `Target <b>${Math.round(target)}°F</b> · <b>${toGo}°F</b> to go`;
+    }
+    if (target != null) return `Target <b>${Math.round(target)}°F</b>`;
+    return p.meat ? esc(p.meat) : "Live";
+  }
+
+  function tagHtml(st) {
+    const icon = st === "reached" ? sealCheck : "";
+    return `<span class="p-tag ${st}">${icon}${tagLabel[st] || st}</span>`;
+  }
+
+  function renderProbes() {
+    const el = document.getElementById("probes");
+    if (!snapshot || !Array.isArray(snapshot.probes) || !snapshot.probes.length) {
+      el.innerHTML = "";
+      return;
+    }
+    const age = snapshot.ageSeconds != null ? snapshot.ageSeconds : 0;
+    el.innerHTML = snapshot.probes.map((p) => {
+      const st = probeState(p);
+      const t = formatTemp(p);
+      const cLine = t.c != null ? `<span class="c">${t.c}°C</span>` : "";
+      return `<article class="probe">
+        <div class="p-head">
+          <span class="dot" style="background:${esc(probeColor(p))}"></span>
+          <span class="p-name">${esc(p.name || "Probe")}</span>
+          ${tagHtml(st)}
+        </div>
+        <div class="p-body">
+          <div class="p-temp ${t.cls}">${esc(t.main)}<span class="u">°F</span>${cLine}</div>
+          <div class="p-meta">
+            <div class="line">${metaLine(p)}</div>
+            <div class="ago" data-age="${age}">updated ${relSeconds(age)}</div>
+          </div>
+        </div>
+      </article>`;
+    }).join("");
+  }
+
+  function boldProbeNames(text, probeName) {
+    let html = esc(text || "");
+    if (probeName) {
+      const name = esc(probeName);
+      html = html.replace(name, `<b>${name}</b>`);
+    }
+    return html;
+  }
+
+  function renderLog() {
+    const panel = document.getElementById("panel-history");
+    const log = document.getElementById("log");
+    if (!events.length) {
+      panel.classList.add("hidden");
+      log.innerHTML = "";
+      return;
+    }
+    panel.classList.remove("hidden");
+
+    const lastSeen = Number(localStorage.getItem(LS_KEY) || "0");
+    let dividerDone = false;
+    const parts = [];
+
+    for (const e of events) {
+      const ts = e.ts || 0;
+      if (!dividerDone && lastSeen > 0 && ts <= lastSeen) {
+        parts.push(`<li class="since">you last checked here · <span data-ts="${ts}">${relSeconds(Math.floor(Date.now() / 1000) - ts)}</span></li>`);
+        dividerDone = true;
+      }
+      const fresh = lastSeen > 0 && ts > lastSeen;
+      parts.push(`<li class="evt${fresh ? " fresh" : ""}">
+        <time>${clock(ts)}</time><span class="txt">${boldProbeNames(e.text, e.probeName)}</span></li>`);
+    }
+
+    log.innerHTML = parts.join("");
+
+    const maxTs = Math.max(...events.map((e) => e.ts || 0));
+    if (maxTs > sessionMaxTs) sessionMaxTs = maxTs;
+  }
+
+  function persistLastSeen() {
+    if (sessionMaxTs > 0) localStorage.setItem(LS_KEY, String(sessionMaxTs));
+  }
+
+  function updateFreshMeta() {
+    const fresh = document.getElementById("fresh");
+    if (!snapshot) {
+      fresh.textContent = "—";
+      return;
+    }
+    const age = snapshot.ageSeconds != null ? snapshot.ageSeconds : 0;
+    fresh.textContent = "updated " + relSeconds(age);
+  }
+
+  function tickRelative() {
+    document.querySelectorAll("[data-age]").forEach((el) => {
+      el.textContent = "updated " + relSeconds(Number(el.dataset.age) || 0);
+    });
+    document.querySelectorAll(".since [data-ts]").forEach((el) => {
+      const ts = Number(el.dataset.ts);
+      if (ts) el.textContent = relSeconds(Math.floor(Date.now() / 1000) - ts);
+    });
+    updateFreshMeta();
+  }
+
+  function setStream(on) {
+    const el = document.getElementById("stream");
+    el.classList.toggle("off", !on);
+    document.getElementById("stream-label").textContent = on ? "streaming" : "offline";
+  }
+
+  function showEmpty() {
+    document.getElementById("panel-empty").classList.remove("hidden");
+    document.getElementById("panel-live").classList.add("hidden");
+    setStream(false);
+  }
+
+  function showLive() {
+    document.getElementById("panel-empty").classList.add("hidden");
+    document.getElementById("panel-live").classList.remove("hidden");
+    setStream(true);
+  }
+
+  function setWaiting(waiting) {
+    document.getElementById("panel-wait").classList.toggle("hidden", !waiting);
+    document.getElementById("panel-now").classList.toggle("hidden", waiting);
+  }
+
+  async function apiGet(path, token) {
+    const res = await fetch(API + path, {
+      headers: { Authorization: "Bearer " + token },
+    });
+    let body = null;
+    try {
+      body = await res.json();
+    } catch (_) { /* empty */ }
+    return { res, body };
+  }
+
+  async function poll() {
+    const token = readerToken();
+    if (!token) {
+      showEmpty();
+      return;
+    }
+    showLive();
+
+    const { res: latestRes, body: latestBody } = await apiGet("/api/latest", token);
+
+    if (latestRes.status === 401) {
+      document.getElementById("panel-empty").classList.remove("hidden");
+      document.getElementById("panel-empty").innerHTML =
+        "<h2>Invalid link</h2><p>This reader token isn't recognized. Open a fresh link from the BBQlaw app.</p>";
+      document.getElementById("panel-live").classList.add("hidden");
+      setStream(false);
+      return;
+    }
+
+    if (latestRes.status === 404) {
+      snapshot = null;
+      setWaiting(true);
+      document.getElementById("fresh").textContent = "waiting for phone";
+      document.getElementById("probes").innerHTML = "";
+    } else if (latestRes.ok && latestBody) {
+      snapshot = latestBody;
+      setWaiting(false);
+      renderProbes();
+      updateFreshMeta();
+      if (latestBody.device) {
+        const ctx = document.getElementById("context-text");
+        ctx.innerHTML =
+          "A cook connected their BBQlaw thermometer (<b>" + esc(latestBody.device) +
+          "</b>) so you can keep an eye on this cook. New readings stream in roughly every 10&nbsp;seconds — check the timestamps to see what's changed since you last looked. They'd like you to <b>track the cook and let them know when something happens</b>: a probe hits its target, stalls, or gets pulled.";
+      }
+    }
+
+    const { res: histRes, body: histBody } = await apiGet("/api/history", token);
+    if (histRes.ok && histBody && Array.isArray(histBody.events) && histBody.events.length) {
+      events = histBody.events;
+      renderLog();
+    } else {
+      events = [];
+      document.getElementById("panel-history").classList.add("hidden");
+    }
+  }
+
+  function start() {
+    const token = readerToken();
+    if (!token) {
+      showEmpty();
+      return;
+    }
+    poll();
+    pollTimer = setInterval(poll, POLL_MS);
+    tickTimer = setInterval(tickRelative, 1000);
+  }
+
+  window.addEventListener("hashchange", () => {
+    persistLastSeen();
+    clearInterval(pollTimer);
+    clearInterval(tickTimer);
+    snapshot = null;
+    events = [];
+    sessionMaxTs = 0;
+    start();
+  });
+
+  window.addEventListener("pagehide", persistLastSeen);
+  window.addEventListener("beforeunload", persistLastSeen);
+
+  start();
+})();
+</script>
+</body>
+</html>

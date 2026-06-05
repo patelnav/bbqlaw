@@ -3,14 +3,35 @@ export interface Env {
   PUBLIC_BASE_URL: string;
 }
 
-interface StoredReading {
-  device: string;
+// One probe in a stored snapshot.
+interface StoredProbe {
+  id: string;
+  name: string;
+  color: string | null;
   tempF: number | null;
-  targetF: number;
-  battery: { base: number | null; probe: number | null };
+  targetF: number | null;
+  meat: string | null;
+  doneness: string | null;
+  mode: string; // "live" | "docked" | "noReading"
+  probeBattery: number | null;
+  baseBattery: number | null;
   connected: boolean;
-  ts: number | null;
-  receivedAt: number;
+}
+
+interface StoredSnapshot {
+  device: string;
+  ts: number | null; // device-reported unix seconds
+  probes: StoredProbe[];
+  receivedAt: number; // server unix seconds
+}
+
+// A human-readable event the OpenClaw feed diffs against on each check-in.
+interface HistoryEvent {
+  ts: number;
+  probeId: string;
+  probeName: string;
+  kind: "reached" | "connected" | "disconnected" | "target-set" | "note";
+  text: string;
 }
 
 interface TokenRecord {
@@ -20,6 +41,7 @@ interface TokenRecord {
 
 const PAIR_RATE_LIMIT = 10;
 const PAIR_RATE_WINDOW_SECONDS = 60;
+const HISTORY_CAP = 60;
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -45,6 +67,8 @@ export default {
           return await handleIngest(request, env);
         case "GET /api/latest":
           return await handleLatest(request, env);
+        case "GET /api/history":
+          return await handleHistory(request, env);
         default:
           return json({ error: "not found" }, 404);
       }
@@ -89,6 +113,9 @@ async function handlePair(
     readerToken,
     ingestUrl: `${base}/api/ingest`,
     latestUrl: `${base}/api/latest`,
+    historyUrl: `${base}/api/history`,
+    // The shareable surface handed to OpenClaw: token lives in the URL fragment.
+    feedUrl: `${base}/openclaw#${readerToken}`,
   });
 }
 
@@ -122,118 +149,241 @@ async function handleIngest(request: Request, env: Env): Promise<Response> {
   }
 
   const receivedAt = Math.floor(Date.now() / 1000);
-  const stored: StoredReading = {
+  const snapshot: StoredSnapshot = {
     device: record.device,
-    tempF: parsed.tempF,
-    targetF: parsed.targetF,
-    battery: parsed.battery,
-    connected: parsed.connected,
     ts: parsed.ts,
+    probes: parsed.probes,
     receivedAt,
   };
 
-  await env.RELAY.put(`reading:${record.device}`, JSON.stringify(stored));
-  return json({ ok: true });
+  // Diff against the previous snapshot to generate human-readable events.
+  const prevRaw = await env.RELAY.get(`reading:${record.device}`);
+  const prev = prevRaw ? (JSON.parse(prevRaw) as StoredSnapshot) : null;
+  const events = diffEvents(prev, snapshot, receivedAt);
+
+  await env.RELAY.put(`reading:${record.device}`, JSON.stringify(snapshot));
+  if (events.length) {
+    await appendHistory(env, record.device, events);
+  }
+
+  return json({ ok: true, events: events.length });
 }
 
 async function handleLatest(request: Request, env: Env): Promise<Response> {
-  const token = bearer(request);
-  if (!token) return json({ error: "missing bearer token" }, 401);
-
-  const record = await lookupToken(env, token);
-  if (!record || record.type !== "reader") {
-    return json({ error: "invalid reader token" }, 401);
-  }
+  const record = await requireReader(request, env);
+  if ("error" in record) return json({ error: record.error }, record.status);
 
   const raw = await env.RELAY.get(`reading:${record.device}`);
   if (!raw) return json({ error: "no readings yet" }, 404);
 
-  const reading = JSON.parse(raw) as StoredReading;
+  const snapshot = JSON.parse(raw) as StoredSnapshot;
   const now = Math.floor(Date.now() / 1000);
-  const ageSeconds = now - reading.receivedAt;
 
   return json({
-    device: reading.device,
-    tempF: reading.tempF,
-    targetF: reading.targetF,
-    battery: reading.battery,
-    connected: reading.connected,
-    ts: reading.ts,
-    ageSeconds,
+    device: snapshot.device,
+    ts: snapshot.ts ?? snapshot.receivedAt,
+    receivedAt: snapshot.receivedAt,
+    ageSeconds: now - snapshot.receivedAt,
+    probes: snapshot.probes,
   });
 }
 
-function parseIngestBody(
-  body: unknown,
-):
-  | {
-      device: string;
-      tempF: number | null;
-      targetF: number;
-      battery: { base: number | null; probe: number | null };
-      connected: boolean;
-      ts: number | null;
+async function handleHistory(request: Request, env: Env): Promise<Response> {
+  const record = await requireReader(request, env);
+  if ("error" in record) return json({ error: record.error }, record.status);
+
+  const raw = await env.RELAY.get(`history:${record.device}`);
+  const events = raw ? (JSON.parse(raw) as HistoryEvent[]) : [];
+  // Most-recent first for the feed.
+  return json({ events: [...events].reverse() });
+}
+
+// MARK: - Event diffing
+
+function isReached(p: StoredProbe): boolean {
+  return (
+    p.mode === "live" &&
+    p.tempF !== null &&
+    p.targetF !== null &&
+    p.tempF >= p.targetF
+  );
+}
+
+function diffEvents(
+  prev: StoredSnapshot | null,
+  next: StoredSnapshot,
+  at: number,
+): HistoryEvent[] {
+  const events: HistoryEvent[] = [];
+  const prevById = new Map<string, StoredProbe>(
+    (prev?.probes ?? []).map((p) => [p.id, p]),
+  );
+
+  for (const p of next.probes) {
+    const before = prevById.get(p.id);
+
+    // New probe appearing connected.
+    if (!before && p.connected) {
+      events.push(ev(at, p, "connected", `${p.name} connected`));
     }
-  | { error: string } {
+
+    if (before) {
+      // Connection transitions.
+      if (before.connected && !p.connected) {
+        events.push(ev(at, p, "disconnected", `${p.name} disconnected`));
+      } else if (!before.connected && p.connected) {
+        events.push(ev(at, p, "connected", `${p.name} reconnected`));
+      }
+
+      // Target set / changed.
+      if (before.targetF !== p.targetF && p.targetF !== null) {
+        events.push(
+          ev(at, p, "target-set", `${p.name}: target set to ${Math.round(p.targetF)}°F`),
+        );
+      }
+    }
+
+    // Target reached (rising edge).
+    if (isReached(p) && !(before && isReached(before))) {
+      events.push(
+        ev(
+          at,
+          p,
+          "reached",
+          `${p.name} hit ${Math.round(p.tempF as number)}°F — target reached`,
+        ),
+      );
+    }
+  }
+
+  // Probes that vanished entirely.
+  for (const before of prev?.probes ?? []) {
+    if (!next.probes.some((p) => p.id === before.id) && before.connected) {
+      events.push(ev(at, before, "disconnected", `${before.name} removed`));
+    }
+  }
+
+  return events;
+}
+
+function ev(
+  ts: number,
+  p: StoredProbe,
+  kind: HistoryEvent["kind"],
+  text: string,
+): HistoryEvent {
+  return { ts, probeId: p.id, probeName: p.name, kind, text };
+}
+
+async function appendHistory(
+  env: Env,
+  device: string,
+  events: HistoryEvent[],
+): Promise<void> {
+  const raw = await env.RELAY.get(`history:${device}`);
+  const existing = raw ? (JSON.parse(raw) as HistoryEvent[]) : [];
+  const merged = [...existing, ...events].slice(-HISTORY_CAP);
+  await env.RELAY.put(`history:${device}`, JSON.stringify(merged));
+}
+
+// MARK: - Parsing
+
+type ParsedIngest =
+  | { device: string; ts: number | null; probes: StoredProbe[] }
+  | { error: string };
+
+function parseIngestBody(body: unknown): ParsedIngest {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return { error: "malformed body" };
   }
-
   const o = body as Record<string, unknown>;
 
   if (typeof o.device !== "string" || !/^[a-z0-9-]{2,32}$/i.test(o.device)) {
     return { error: "invalid device" };
   }
 
-  if (o.tempF !== null && typeof o.tempF !== "number") {
-    return { error: "invalid tempF" };
-  }
-
-  if (typeof o.targetF !== "number") {
-    return { error: "invalid targetF" };
-  }
-
-  let battery: { base: number | null; probe: number | null } = {
-    base: null,
-    probe: null,
-  };
-  if (o.battery !== undefined) {
-    if (typeof o.battery !== "object" || o.battery === null || Array.isArray(o.battery)) {
-      return { error: "invalid battery" };
-    }
-    const b = o.battery as Record<string, unknown>;
-    if (
-      (b.base !== null && b.base !== undefined && typeof b.base !== "number") ||
-      (b.probe !== null && b.probe !== undefined && typeof b.probe !== "number")
-    ) {
-      return { error: "invalid battery" };
-    }
-    battery = {
-      base: typeof b.base === "number" ? b.base : null,
-      probe: typeof b.probe === "number" ? b.probe : null,
-    };
-  }
-
-  let connected = true;
-  if (o.connected !== undefined) {
-    if (typeof o.connected !== "boolean") {
-      return { error: "invalid connected" };
-    }
-    connected = o.connected;
-  }
-
-  if (o.ts !== null && typeof o.ts !== "number") {
+  const ts =
+    o.ts === null || o.ts === undefined ? null : num(o.ts);
+  if (o.ts !== null && o.ts !== undefined && ts === null) {
     return { error: "invalid ts" };
   }
 
+  // New multi-probe schema.
+  if (Array.isArray(o.probes)) {
+    if (o.probes.length > 16) return { error: "too many probes" };
+    const probes: StoredProbe[] = [];
+    for (const raw of o.probes) {
+      const p = parseProbe(raw);
+      if (p) probes.push(p);
+    }
+    return { device: o.device.toLowerCase(), ts, probes };
+  }
+
+  // Legacy single-probe fallback (old app builds).
+  if (typeof o.targetF === "number" || o.tempF === null || typeof o.tempF === "number") {
+    const battery = (o.battery ?? {}) as Record<string, unknown>;
+    const probe: StoredProbe = {
+      id: o.device.toLowerCase(),
+      name: "Probe",
+      color: null,
+      tempF: o.tempF === null || o.tempF === undefined ? null : num(o.tempF),
+      targetF: typeof o.targetF === "number" ? o.targetF : null,
+      meat: null,
+      doneness: null,
+      mode: o.connected === false ? "noReading" : "live",
+      probeBattery: num(battery.probe),
+      baseBattery: num(battery.base),
+      connected: o.connected !== false,
+    };
+    return { device: o.device.toLowerCase(), ts, probes: [probe] };
+  }
+
+  return { error: "missing probes" };
+}
+
+function parseProbe(raw: unknown): StoredProbe | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.id !== "string" || o.id.length === 0 || o.id.length > 64) return null;
+  const mode = typeof o.mode === "string" ? o.mode : "noReading";
   return {
-    device: o.device.toLowerCase(),
-    tempF: o.tempF === null ? null : (o.tempF as number),
-    targetF: o.targetF,
-    battery,
-    connected,
-    ts: o.ts === null || o.ts === undefined ? null : (o.ts as number),
+    id: o.id.slice(0, 64),
+    name: typeof o.name === "string" ? o.name.slice(0, 48) : "Probe",
+    color: typeof o.color === "string" ? o.color.slice(0, 9) : null,
+    tempF: num(o.tempF),
+    targetF: num(o.targetF),
+    meat: typeof o.meat === "string" ? o.meat.slice(0, 48) : null,
+    doneness: typeof o.doneness === "string" ? o.doneness.slice(0, 24) : null,
+    mode: ["live", "docked", "noReading"].includes(mode) ? mode : "noReading",
+    probeBattery: num(o.probeBattery),
+    baseBattery: num(o.baseBattery),
+    connected: o.connected !== false,
   };
+}
+
+function num(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+// MARK: - Tokens / infra
+
+async function requireReader(
+  request: Request,
+  env: Env,
+): Promise<{ device: string } | { error: string; status: number }> {
+  const token = bearer(request);
+  if (!token) return { error: "missing bearer token", status: 401 };
+  const record = await lookupToken(env, token);
+  if (!record || record.type !== "reader") {
+    return { error: "invalid reader token", status: 401 };
+  }
+  // Reader tokens are scoped to the current pairing — re-pairing revokes old ones.
+  // (Tokens minted before this check have no curreader key and stay valid.)
+  const currentReader = await env.RELAY.get(`device:${record.device}:curreader`);
+  if (currentReader && currentReader !== (await hashToken(token))) {
+    return { error: "token superseded", status: 401 };
+  }
+  return { device: record.device };
 }
 
 async function storePairTokens(
@@ -254,6 +404,7 @@ async function storePairTokens(
     JSON.stringify({ type: "reader", device } satisfies TokenRecord),
   );
   await env.RELAY.put(`device:${device}:curtoken`, deviceHash);
+  await env.RELAY.put(`device:${device}:curreader`, readerHash);
 }
 
 async function checkPairRateLimit(env: Env, ip: string): Promise<boolean> {

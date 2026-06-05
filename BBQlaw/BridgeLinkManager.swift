@@ -8,24 +8,44 @@ final class BridgeLinkManager: ObservableObject {
     @Published private(set) var deviceId: String?
     @Published private(set) var readerToken: String?
     @Published private(set) var latestUrl: String?
+    /// Shareable OpenClaw feed URL (`https://bbqlaw.app/openclaw#<readerToken>`).
+    @Published private(set) var shareURL: String?
     @Published private(set) var lastError: String?
     @Published private(set) var lastSuccess: String?
 
     private let log = Logger(subsystem: "com.bbqlaw.app", category: "bridge")
 
     init() {
-        deviceId = BridgeKeychain.credentials?.deviceId
+        applyStoredCredentials()
     }
 
     func refreshLinkState() {
         isLinked = BridgeKeychain.isLinked
-        deviceId = BridgeKeychain.credentials?.deviceId
+        applyStoredCredentials()
+    }
+
+    private func applyStoredCredentials() {
+        guard let creds = BridgeKeychain.credentials else {
+            deviceId = nil
+            readerToken = nil
+            shareURL = nil
+            return
+        }
+        deviceId = creds.deviceId
+        if let token = creds.readerToken, !token.isEmpty {
+            readerToken = token
+            shareURL = Self.feedURL(readerToken: token)
+        } else {
+            readerToken = nil
+            shareURL = nil
+        }
     }
 
     func unlink() {
         BridgeKeychain.clear()
         readerToken = nil
         latestUrl = nil
+        shareURL = nil
         refreshLinkState()
         lastSuccess = "Bridge unlinked."
         lastError = nil
@@ -61,15 +81,17 @@ final class BridgeLinkManager: ObservableObject {
             guard BridgeKeychain.save(
                 deviceId: payload.device,
                 deviceToken: payload.deviceToken,
-                ingestURL: ingestURL
+                ingestURL: ingestURL,
+                readerToken: payload.readerToken
             ) else {
                 lastError = "Could not save credentials to Keychain."
                 return
             }
             readerToken = payload.readerToken
             latestUrl = payload.latestUrl
+            shareURL = Self.feedURL(readerToken: payload.readerToken)
             refreshLinkState()
-            lastSuccess = "Linked as \(payload.device). Copy the reader token for OpenClaw."
+            lastSuccess = "Linked as \(payload.device). Copy the feed link for OpenClaw."
             log.notice("bridge paired device=\(payload.device, privacy: .public)")
         } catch {
             lastError = error.localizedDescription
@@ -86,5 +108,9 @@ final class BridgeLinkManager: ObservableObject {
 
     private struct PairError: Decodable {
         let error: String
+    }
+
+    private static func feedURL(readerToken: String) -> String {
+        "https://bbqlaw.app/openclaw#" + readerToken
     }
 }

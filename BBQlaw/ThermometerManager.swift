@@ -3,87 +3,71 @@ import CoreBluetooth
 import UserNotifications
 import os
 
-/// Central BLE manager for the BLE meat thermometer (INT-11I-B class; likely siblings in the INT family).
+/// Per-peripheral transient BLE state (not published — the display half lives in `Probe`).
+final class ProbeSession {
+    let peripheral: CBPeripheral
+    var controlCharacteristic: CBCharacteristic?   // FF02
+    var pendingNotify: Set<CBUUID> = []
+    var authAttempts = 0
+    var challengeSeen = false
+    var userInitiatedDisconnect = false
+    init(peripheral: CBPeripheral) { self.peripheral = peripheral }
+}
+
+/// Multi-probe central BLE manager for INT-11I-B class thermometers.
 ///
-/// Uses the main run loop as the delegate queue (queue: nil), so every delegate
-/// callback lands on the main thread and can mutate @Published state directly.
+/// Each connected thermometer is one CBPeripheral with its own auth handshake,
+/// temperature stream, batteries, name, and target — tracked as a `Probe` in the
+/// published `probes` array (keyed by peripheral identifier) plus a `ProbeSession`
+/// holding transient handshake state.
 ///
-/// Background continuity for long (multi-hour) cooks is handled by two things,
-/// NOT by background scanning (which iOS silently ignores):
-///   1. CoreBluetooth state restoration — iOS can relaunch BBQlaw into the
-///      background and hand back the in-progress peripheral via willRestoreState.
-///   2. connect()-based auto-reconnect — connect() has no timeout and is honored
-///      in the background, so a range blip resumes automatically.
+/// Background continuity for long cooks comes from CoreBluetooth state restoration
+/// + connect()-based auto-reconnect (background scanning is ignored by iOS), per
+/// peripheral.
 final class ThermometerManager: NSObject, ObservableObject {
 
     private enum Keys {
-        static let targetF = "bbqlaw.targetF"
-        static let alarmEnabled = "bbqlaw.alarmEnabled"
-        static let hasFiredAlarm = "bbqlaw.hasFiredAlarm"
+        static let cooks = "bbqlaw.cooks.v2"   // [uuidString: PersistedCook]
     }
     private static let restoreIdentifier = "com.bbqlaw.central"
 
     // MARK: Published state
-    @Published var connection: ConnectionState = .idle
+    @Published var probes: [Probe] = []
     @Published var discovered: [DiscoveredDevice] = []
-    @Published var temperatureF: Double?
-    @Published var probeBattery: Int?
-    @Published var baseBattery: Int?
-    @Published var lastRawTemp: Data?          // surfaced in the UI to confirm decoding on first connect
-    @Published var connectedName: String?
+    @Published var bluetoothOff = false
+    @Published var scanning = false
     @Published var lastError: String?
-    @Published var authState: AuthState = .none
-    @Published var readingNote: String?        // shown under the temp when there's no live reading
 
-    // MARK: Alarm (persisted so a mid-cook restart/reconnect doesn't re-fire)
-    @Published var targetF: Double {
-        didSet {
-            defaults.set(targetF, forKey: Keys.targetF)
-            // A new target re-arms the alarm and clears any prior "reached" state.
-            hasFiredAlarm = false
-            targetReached = false
-        }
-    }
-    @Published var alarmEnabled: Bool {
-        didSet { defaults.set(alarmEnabled, forKey: Keys.alarmEnabled) }
-    }
-    @Published var targetReached: Bool = false
-    private var hasFiredAlarm: Bool {
-        didSet { defaults.set(hasFiredAlarm, forKey: Keys.hasFiredAlarm) }
-    }
-
-    // MARK: BLE internals
-    private let defaults = UserDefaults.standard
-    private let log = Logger(subsystem: "com.bbqlaw.app", category: "ble")
-    private var central: CBCentralManager!
-    private var peripheral: CBPeripheral?
-    private var userInitiatedDisconnect = false
-    private var controlCharacteristic: CBCharacteristic?   // FF02
-    private var pendingNotify: Set<CBUUID> = []             // chars awaiting notify-enable
-    private var authAttempts = 0
-    private var challengeSeen = false
     /// Fired on each reading / connection change so the OpenClaw bridge can push
     /// from the BLE path (works backgrounded, unlike a wall-clock timer).
     var onStateChange: (() -> Void)?
 
+    // MARK: Internals
+    private let defaults = UserDefaults.standard
+    private let log = Logger(subsystem: "com.bbqlaw.app", category: "ble")
+    private var central: CBCentralManager!
+    private var sessions: [UUID: ProbeSession] = [:]
+    private var persisted: [String: PersistedCook] = [:]
+
     override init() {
-        targetF = defaults.object(forKey: Keys.targetF) as? Double ?? 203  // brisket / pulled-pork default
-        alarmEnabled = defaults.object(forKey: Keys.alarmEnabled) as? Bool ?? true
-        hasFiredAlarm = defaults.bool(forKey: Keys.hasFiredAlarm)
         super.init()
+        loadCooks()
         central = CBCentralManager(delegate: self, queue: nil, options: [
             CBCentralManagerOptionRestoreIdentifierKey: ThermometerManager.restoreIdentifier
         ])
     }
 
+    // MARK: Derived
+    var connectedCount: Int { probes.filter { $0.connection == .connected }.count }
+    var anyConnected: Bool { connectedCount > 0 }
+
     // MARK: Public API
     func startScan() {
         guard central.state == .poweredOn else { return }
         discovered.removeAll()
-        connection = .scanning
-        // Foreground discovery is intentionally broad (services: nil) because the
-        // advertised service UUID isn't yet confirmed across INT variants. This is
-        // a foreground-only path; background reconnection uses connect(), above.
+        scanning = true
+        // Foreground discovery is broad (services: nil): the advertised service UUID
+        // isn't confirmed across INT variants. Background reconnection uses connect().
         central.scanForPeripherals(withServices: nil, options: [
             CBCentralManagerScanOptionAllowDuplicatesKey: false
         ])
@@ -91,96 +75,156 @@ final class ThermometerManager: NSObject, ObservableObject {
 
     func stopScan() {
         central.stopScan()
-        if connection == .scanning { connection = .idle }
+        scanning = false
     }
 
+    /// Connect (add) a probe. Same path for the first probe and every subsequent one.
     func connect(_ device: DiscoveredDevice) {
         stopScan()
-        userInitiatedDisconnect = false
-        connection = .connecting
-        peripheral = device.peripheral
-        peripheral?.delegate = self
-        connectedName = device.name
+        let id = device.peripheral.identifier
+        guard sessions[id] == nil else { return }   // already linked
+
+        let session = ProbeSession(peripheral: device.peripheral)
+        session.peripheral.delegate = self
+        sessions[id] = session
+
+        if let idx = probes.firstIndex(where: { $0.id == id }) {
+            probes[idx].connection = .connecting
+            probes[idx].advertisedName = device.name
+        } else {
+            probes.append(makeProbe(id: id, advertisedName: device.name))
+        }
         central.connect(device.peripheral, options: nil)
     }
 
-    func disconnect() {
-        userInitiatedDisconnect = true
-        if let p = peripheral { central.cancelPeripheralConnection(p) }
+    /// Remove a probe entirely (user-initiated): disconnect + forget.
+    func removeProbe(_ id: UUID) {
+        if let session = sessions[id] {
+            session.userInitiatedDisconnect = true
+            central.cancelPeripheralConnection(session.peripheral)
+            session.peripheral.delegate = nil
+        }
+        sessions[id] = nil
+        probes.removeAll { $0.id == id }
+        persisted[id.uuidString] = nil
+        persistCooks()
+        onStateChange?()
+    }
+
+    // MARK: Cook mutators (persist per-probe so a reconnect restores the cook)
+    func setName(_ id: UUID, _ name: String) {
+        mutate(id) { $0.name = name }; saveCook(id); onStateChange?()
+    }
+
+    func setTarget(_ id: UUID, _ targetF: Double?) {
+        mutate(id) { p in
+            p.targetF = targetF
+            guard let target = targetF, let temp = p.tempF, p.mode == .live else {
+                p.targetReached = false
+                p.hasFiredAlarm = false
+                return
+            }
+            if target <= temp {
+                p.targetReached = true
+                p.hasFiredAlarm = true
+            } else {
+                p.targetReached = false
+                p.hasFiredAlarm = false
+            }
+        }
+        saveCook(id); onStateChange?()
+    }
+
+    /// Apply a meat/doneness selection (and its preset target, unless nil/custom).
+    func setCook(_ id: UUID, meatKey: String?, doneness: String?, target: Double?) {
+        mutate(id) { p in
+            p.meatKey = meatKey
+            p.doneness = doneness
+            if let target { p.targetF = target; p.hasFiredAlarm = false; p.targetReached = false }
+        }
+        evaluateAlarm(id); saveCook(id); onStateChange?()
     }
 
     // MARK: Helpers
-    private func attemptReconnect() {
-        guard let p = peripheral, !userInitiatedDisconnect else { return }
-        connection = .connecting
-        central.connect(p, options: nil)   // patient, background-honored reconnect
+    private func mutate(_ id: UUID, _ block: (inout Probe) -> Void) {
+        guard let idx = probes.firstIndex(where: { $0.id == id }) else { return }
+        block(&probes[idx])
     }
 
-    private func resetReadings() {
-        temperatureF = nil
-        probeBattery = nil
-        baseBattery = nil
-        lastRawTemp = nil
-        targetReached = false
-        readingNote = nil
-        authState = .none
-        controlCharacteristic = nil
-        pendingNotify.removeAll()
-        authAttempts = 0
-        challengeSeen = false
-        // Deliberately NOT resetting hasFiredAlarm: it persists across reconnects
-        // and restarts so a mid-cook blip doesn't re-fire the alert. The hysteresis
-        // in evaluateAlarm() re-arms it once the temp drops well below target.
+    private func makeProbe(id: UUID, advertisedName: String?) -> Probe {
+        if let saved = persisted[id.uuidString] {
+            return Probe(id: id, name: saved.name, colorHex: saved.colorHex,
+                         meatKey: saved.meatKey, doneness: saved.doneness, targetF: saved.targetF,
+                         connection: .connecting, advertisedName: advertisedName)
+        }
+        let index = probes.count
+        let colorHex = BBQ.probeColorsHex[index % BBQ.probeColorsHex.count]
+        return Probe(id: id, name: "Probe \(index + 1)", colorHex: colorHex,
+                     connection: .connecting, advertisedName: advertisedName)
     }
 
-    /// FF02 auth handshake: request a challenge, retrying because the probe only
-    /// issues one when it's actively measuring (silent while docked/idle).
-    private func startAuth() {
-        guard let ctrl = controlCharacteristic, let p = peripheral else { return }
-        authAttempts += 1
-        let attempt = authAttempts
-        authState = .requested
-        log.notice("auth: -> 01 fb (attempt \(attempt))")
-        p.writeValue(Data([0x01, 0xFB]), for: ctrl, type: .withoutResponse)  // request challenge
+    private func attemptReconnect(_ id: UUID) {
+        guard let session = sessions[id], !session.userInitiatedDisconnect else { return }
+        mutate(id) { $0.connection = .connecting }
+        central.connect(session.peripheral, options: nil)   // patient, background-honored
+    }
+
+    private func resetReadings(_ id: UUID) {
+        mutate(id) { p in
+            p.tempF = nil
+            p.mode = .noReading
+            p.targetReached = false
+            p.readingNote = nil
+            p.authState = .none
+            // hasFiredAlarm persists across reconnects (hysteresis re-arms it).
+        }
+        if let session = sessions[id] {
+            session.controlCharacteristic = nil
+            session.pendingNotify.removeAll()
+            session.authAttempts = 0
+            session.challengeSeen = false
+        }
+    }
+
+    // MARK: Auth (keeps each probe streaming with no vendor app)
+    private func startAuth(_ id: UUID) {
+        guard let session = sessions[id], let ctrl = session.controlCharacteristic else { return }
+        session.authAttempts += 1
+        let attempt = session.authAttempts
+        mutate(id) { $0.authState = .requested }
+        log.notice("auth[\(id.uuidString, privacy: .public)]: -> 01 fb (attempt \(attempt))")
+        session.peripheral.writeValue(Data([0x01, 0xFB]), for: ctrl, type: .withoutResponse)
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-            guard let self else { return }
-            // Only act if this is still the latest attempt, no challenge arrived,
-            // we're still connected, and we haven't authed.
-            guard self.connection == .connected, !self.challengeSeen,
-                  self.authState == .requested, attempt == self.authAttempts else { return }
+            guard let self, let session = self.sessions[id] else { return }
+            let probe = self.probes.first { $0.id == id }
+            guard probe?.connection == .connected, !session.challengeSeen,
+                  probe?.authState == .requested, attempt == session.authAttempts else { return }
             if attempt < 5 {
-                self.startAuth()
+                self.startAuth(id)
             } else {
-                // Probe isn't answering — almost always because it's docked/idle.
-                // Stay connected; a reconnect re-attempts auth once it's active.
-                self.log.notice("auth: no challenge after \(attempt) tries — waiting for probe")
-                self.authState = .waiting
+                self.log.notice("auth[\(id.uuidString, privacy: .public)]: no challenge — waiting for probe")
+                self.mutate(id) { $0.authState = .waiting }
             }
         }
     }
 
-    /// Handle FF02 control frames: answer the challenge, record the auth result.
-    private func handleControlFrames(_ data: Data) {
-        guard let ctrl = controlCharacteristic, let p = peripheral else { return }
+    private func handleControlFrames(_ id: UUID, _ data: Data) {
+        guard let session = sessions[id], let ctrl = session.controlCharacteristic else { return }
+        let authed = probes.first { $0.id == id }?.authState == .authed
         for (type, body) in parseControlFrames(data) {
             switch type {
-            case 0xFB where body.count >= 6 && !challengeSeen && authState != .authed:
-                // Answer ONLY the first challenge per connection. Responding to a
-                // second (from a retried 01 fb) sends a stale verify the device
-                // rejects, which used to flip a good auth to "failed".
-                challengeSeen = true
+            case 0xFB where body.count >= 6 && !session.challengeSeen && !authed:
+                session.challengeSeen = true
                 let challenge = Array(body.prefix(6))
                 let resp = buildAuthResponse(challenge: challenge)
-                log.notice("auth: <- 07 fb challenge \(challenge.map { String(format: "%02x", $0) }.joined()); -> 08 fc verify")
-                p.writeValue(resp, for: ctrl, type: .withoutResponse)
-            case 0xFC where authState != .authed:   // 02 fc <status> -> auth result
+                log.notice("auth[\(id.uuidString, privacy: .public)]: <- challenge; -> verify")
+                session.peripheral.writeValue(resp, for: ctrl, type: .withoutResponse)
+            case 0xFC where !authed:
                 if body.first == 0 {
-                    log.notice("auth: <- 02 fc 00  ACCEPTED")
-                    authState = .authed
+                    mutate(id) { $0.authState = .authed }
                     lastError = nil
                 } else {
-                    log.error("auth: <- 02 fc \(body.first ?? 0xFF, format: .hex)  REJECTED")
-                    authState = .failed
+                    mutate(id) { $0.authState = .failed }
                     lastError = "auth rejected (status \(body.first ?? 0xFF))"
                 }
             default:
@@ -189,122 +233,148 @@ final class ThermometerManager: NSObject, ObservableObject {
         }
     }
 
-    private func evaluateAlarm() {
-        guard alarmEnabled, let t = temperatureF else { return }
-        if t >= targetF {
-            targetReached = true
-            if !hasFiredAlarm {
-                hasFiredAlarm = true
-                fireTargetNotification(current: t)
+    // MARK: Alarm (per probe)
+    private func evaluateAlarm(_ id: UUID) {
+        guard let idx = probes.firstIndex(where: { $0.id == id }) else { return }
+        var p = probes[idx]
+        guard let t = p.targetF, let temp = p.tempF, p.mode == .live else { return }
+        if temp >= t {
+            p.targetReached = true
+            if !p.hasFiredAlarm {
+                p.hasFiredAlarm = true
+                fireTargetNotification(name: p.name, current: temp, target: t)
             }
-        } else if t < targetF - 2 {
-            targetReached = false
-            hasFiredAlarm = false
+        } else if temp < t - 2 {
+            p.targetReached = false
+            p.hasFiredAlarm = false
         }
+        probes[idx] = p
     }
 
-    private func fireTargetNotification(current: Double) {
+    private func fireTargetNotification(name: String, current: Double, target: Double) {
         let content = UNMutableNotificationContent()
-        content.title = "🔥 Target reached"
-        content.body = String(format: "Your food hit %.0f°F (target %.0f°F).", current, targetF)
+        content.title = "🔥 \(name) hit target"
+        content.body = String(format: "%@ reached %.0f°F (target %.0f°F).", name, current, target)
         content.sound = .default
-        let req = UNNotificationRequest(identifier: "bbqlaw.target", content: content, trigger: nil)
+        let req = UNNotificationRequest(identifier: "bbqlaw.target.\(name)", content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req)
+    }
+
+    // MARK: Persistence
+    private struct PersistedCook: Codable {
+        var name: String
+        var colorHex: UInt32
+        var meatKey: String?
+        var doneness: String?
+        var targetF: Double?
+    }
+
+    private func loadCooks() {
+        guard let data = defaults.data(forKey: Keys.cooks),
+              let map = try? JSONDecoder().decode([String: PersistedCook].self, from: data) else { return }
+        persisted = map
+    }
+
+    private func saveCook(_ id: UUID) {
+        guard let p = probes.first(where: { $0.id == id }) else { return }
+        persisted[id.uuidString] = PersistedCook(
+            name: p.name, colorHex: p.colorHex, meatKey: p.meatKey,
+            doneness: p.doneness, targetF: p.targetF
+        )
+        persistCooks()
+    }
+
+    private func persistCooks() {
+        if let data = try? JSONEncoder().encode(persisted) {
+            defaults.set(data, forKey: Keys.cooks)
+        }
     }
 }
 
 // MARK: - CBCentralManagerDelegate
 extension ThermometerManager: CBCentralManagerDelegate {
-    func centralManager(_ central: CBCentralManager,
-                        willRestoreState dict: [String: Any]) {
-        // iOS relaunched us (likely into the background) with an in-progress session.
-        guard let restored = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
-              let p = restored.first else { return }
-        peripheral = p
-        p.delegate = self
-        connectedName = p.name
-        if p.state == .connected {
-            connection = .connected
-            p.discoverServices(nil)
-        } else {
-            connection = .connecting
+    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
+        guard let restored = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] else { return }
+        for p in restored {
+            let id = p.identifier
+            if sessions[id] == nil {
+                let session = ProbeSession(peripheral: p)
+                p.delegate = self
+                sessions[id] = session
+            }
+            if probes.firstIndex(where: { $0.id == id }) == nil {
+                probes.append(makeProbe(id: id, advertisedName: p.name))
+            }
+            mutate(id) { $0.connection = p.state == .connected ? .connected : .connecting }
+            if p.state == .connected { p.discoverServices(nil) }
         }
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            // Resume an interrupted session (e.g. after Bluetooth was toggled).
-            if let p = peripheral, p.state != .connected, !userInitiatedDisconnect {
-                attemptReconnect()
-            } else if connection == .bluetoothOff {
-                connection = .idle
+            bluetoothOff = false
+            // Resume any interrupted sessions.
+            for (id, session) in sessions where session.peripheral.state != .connected && !session.userInitiatedDisconnect {
+                attemptReconnect(id)
             }
-            if peripheral == nil { connection = .idle }
         case .poweredOff, .unauthorized, .unsupported, .resetting, .unknown:
-            connection = .bluetoothOff
-            resetReadings()
+            bluetoothOff = true
+            scanning = false
+            for id in probes.map(\.id) { resetReadings(id); mutate(id) { $0.connection = .disconnected } }
         @unknown default:
-            connection = .bluetoothOff
+            bluetoothOff = true
         }
     }
 
-    func centralManager(_ central: CBCentralManager,
-                        didDiscover peripheral: CBPeripheral,
-                        advertisementData: [String: Any],
-                        rssi RSSI: NSNumber) {
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
+                        advertisementData: [String: Any], rssi RSSI: NSNumber) {
         let advName = (advertisementData[CBAdvertisementDataLocalNameKey] as? String)
             ?? peripheral.name ?? "Unknown"
         let advServices = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID]) ?? []
-        let device = DiscoveredDevice(id: peripheral.identifier,
-                                      peripheral: peripheral,
-                                      name: advName,
-                                      rssi: RSSI.intValue,
-                                      services: advServices)
+        let device = DiscoveredDevice(id: peripheral.identifier, peripheral: peripheral,
+                                      name: advName, rssi: RSSI.intValue, services: advServices)
+        // Hide probes we're already connected to.
+        if probes.contains(where: { $0.id == device.id && $0.connection == .connected }) { return }
         if let idx = discovered.firstIndex(where: { $0.id == device.id }) {
             discovered[idx] = device
         } else {
             discovered.append(device)
         }
         discovered.sort {
-            if $0.looksLikeThermometer != $1.looksLikeThermometer {
-                return $0.looksLikeThermometer
-            }
-            return $0.rssi > $1.rssi
+            $0.looksLikeThermometer != $1.looksLikeThermometer
+                ? $0.looksLikeThermometer
+                : $0.rssi > $1.rssi
         }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        userInitiatedDisconnect = false
-        connection = .connected
+        let id = peripheral.identifier
+        sessions[id]?.userInitiatedDisconnect = false
+        mutate(id) { $0.connection = .connected }
         lastError = nil
-        log.notice("connected; discovering services")
+        log.notice("connected \(id.uuidString, privacy: .public); discovering services")
         peripheral.discoverServices(nil)
         onStateChange?()
     }
 
-    func centralManager(_ central: CBCentralManager,
-                        didFailToConnect peripheral: CBPeripheral,
-                        error: Error?) {
+    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         lastError = error?.localizedDescription ?? "Connection failed"
-        attemptReconnect()
+        attemptReconnect(peripheral.identifier)
     }
 
-    func centralManager(_ central: CBCentralManager,
-                        didDisconnectPeripheral peripheral: CBPeripheral,
-                        error: Error?) {
+    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        let id = peripheral.identifier
         if let error { lastError = error.localizedDescription }
-        log.notice("disconnected (userInitiated=\(self.userInitiatedDisconnect))")
-        resetReadings()
-        if userInitiatedDisconnect {
-            connection = .disconnected
-            peripheral.delegate = nil
-            self.peripheral = nil
+        let userInitiated = sessions[id]?.userInitiatedDisconnect ?? true
+        log.notice("disconnected \(id.uuidString, privacy: .public) (userInitiated=\(userInitiated))")
+        resetReadings(id)
+        if userInitiated {
+            mutate(id) { $0.connection = .disconnected }
         } else {
-            // Unexpected drop during a cook — keep trying to come back.
-            attemptReconnect()
+            attemptReconnect(id)   // unexpected drop mid-cook — keep trying
         }
-        onStateChange?()   // let the bridge send a final connected:false
+        onStateChange?()
     }
 }
 
@@ -317,21 +387,18 @@ extension ThermometerManager: CBPeripheralDelegate {
         }
     }
 
-    func peripheral(_ peripheral: CBPeripheral,
-                    didDiscoverCharacteristicsFor service: CBService,
-                    error: Error?) {
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error { lastError = error.localizedDescription; return }
         guard service.uuid == ProbeGATT.service else { return }
-        authState = .subscribing
+        let id = peripheral.identifier
+        guard let session = sessions[id] else { return }
+        mutate(id) { $0.authState = .subscribing }
         // Subscribe ALL FF00-family notify chars BEFORE the auth hello — the probe
-        // only emits the challenge once every one is subscribed. startAuth() fires
-        // from didUpdateNotificationStateFor once pendingNotify drains.
+        // only emits the challenge once every one is subscribed.
         for ch in service.characteristics ?? [] {
-            if ch.uuid == ProbeGATT.controlChar {
-                controlCharacteristic = ch
-            }
+            if ch.uuid == ProbeGATT.controlChar { session.controlCharacteristic = ch }
             if ProbeGATT.notifyChars.contains(ch.uuid), ch.properties.contains(.notify) {
-                pendingNotify.insert(ch.uuid)
+                session.pendingNotify.insert(ch.uuid)
                 peripheral.setNotifyValue(true, for: ch)
             }
             if ch.uuid == ProbeGATT.batteryChar, ch.properties.contains(.read) {
@@ -340,46 +407,40 @@ extension ThermometerManager: CBPeripheralDelegate {
         }
     }
 
-    func peripheral(_ peripheral: CBPeripheral,
-                    didUpdateNotificationStateFor characteristic: CBCharacteristic,
-                    error: Error?) {
+    func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         if let error { lastError = error.localizedDescription; return }
-        pendingNotify.remove(characteristic.uuid)
-        if pendingNotify.isEmpty && authState == .subscribing {
-            startAuth()
+        let id = peripheral.identifier
+        guard let session = sessions[id] else { return }
+        session.pendingNotify.remove(characteristic.uuid)
+        if session.pendingNotify.isEmpty, probes.first(where: { $0.id == id })?.authState == .subscribing {
+            startAuth(id)
         }
     }
 
-    func peripheral(_ peripheral: CBPeripheral,
-                    didUpdateValueFor characteristic: CBCharacteristic,
-                    error: Error?) {
+    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         if let error { lastError = error.localizedDescription; return }
         guard let data = characteristic.value else { return }
+        let id = peripheral.identifier
         switch characteristic.uuid {
         case ProbeGATT.tempChar:
-            lastRawTemp = data
             switch decodeProbeReading(data) {
             case .fahrenheit(let f):
-                temperatureF = f
-                readingNote = nil
-                evaluateAlarm()
+                mutate(id) { p in p.tempF = f; p.mode = .live; p.readingNote = nil }
+                evaluateAlarm(id)
             case .docked:
-                temperatureF = nil
-                targetReached = false    // clear stale "reached" state
-                // Docked = sitting on the charger; use probe battery to distinguish.
-                readingNote = (probeBattery ?? 0) >= 100 ? "Docked · battery full" : "Charging in base station"
+                mutate(id) { p in
+                    p.tempF = nil; p.mode = .docked; p.targetReached = false
+                    p.readingNote = (p.probeBattery ?? 0) >= 100 ? "Docked · battery full" : "Charging in base station"
+                }
             case .noReading:
-                temperatureF = nil
-                targetReached = false
-                readingNote = "No probe reading"
+                mutate(id) { p in p.tempF = nil; p.mode = .noReading; p.targetReached = false; p.readingNote = "No probe reading" }
             }
-            onStateChange?()   // BLE-driven: poke the bridge on every reading
+            onStateChange?()
         case ProbeGATT.batteryChar:
             let (base, probe) = decodeBattery(data)
-            baseBattery = base
-            probeBattery = probe
+            mutate(id) { p in p.baseBattery = base; p.probeBattery = probe }
         case ProbeGATT.controlChar:
-            handleControlFrames(data)
+            handleControlFrames(id, data)
         default:
             break
         }

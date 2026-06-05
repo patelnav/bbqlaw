@@ -1,0 +1,181 @@
+/* ============================================================================
+   BBQlaw — Colors & Type
+   The single source of truth for the BBQlaw visual foundation.
+   Import this in every mock, UI kit, and slide.
+
+   Big idea: an INSTRUMENT, not an app. The temperature is the hero. The screen
+   warms up as the cook climbs (the "ember ramp"). Cool slate = inactive/waiting,
+   warm ember = cooking, full flood = done. Glanceable from across the yard,
+   in bright sun, with greasy hands.
+
+   Fonts are loaded from Google Fonts (see <link> in each HTML file, or @import
+   below). These are DELIBERATE choices, not the iOS app's SF Pro — see README
+   "Type" + the font substitution flag.
+   ============================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400..900;1,400..900&family=Hanken+Grotesk:ital,wght@0,400..800;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap');
+
+:root {
+  /* ---- Font families -------------------------------------------------------
+     --font-display  Nunito        rounded geometric, friendly — the hero number + big headings
+     --font-ui       Hanken Grotesk neutral Swiss — labels, body, chrome (gets out of the way)
+     --font-mono     JetBrains Mono link codes, hex, device IDs, technical readouts
+  */
+  --font-display: 'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+  --font-ui: 'Hanken Grotesk', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ---- BRAND / EMBER -------------------------------------------------------
+     Ember orange is the signature. --ember is the canonical brand color
+     (matches the iOS AccentColor sRGB 0.890/0.380/0.149). --ember-bright is the
+     glow-friendly variant used on dark backgrounds. */
+  --ember:        #E3611F;  /* canonical brand orange */
+  --ember-bright: #FF6B2C;  /* dark-mode / glow accent */
+  --ember-deep:   #C2410C;  /* pressed / deep fire */
+  --ember-ink:    #7C2D12;  /* text on ember-tinted fills */
+
+  /* ---- TEMPERATURE RAMP (data viz) ----------------------------------------
+     The cook's narrative, cold -> hot. Use for the hero number color, the
+     progress arc, and the screen glow. Interpolate in oklch for smoothness.
+       cold  -> probe just out, far from target
+       warm  -> climbing
+       hot   -> close
+       fire  -> at / over target  (paired with a full ember flood + check) */
+  --temp-cold: #4A7DB5;  /* cool slate-blue */
+  --temp-cool: #7FA8C9;
+  --temp-warm: #E0A93C;  /* amber / gold */
+  --temp-hot:  #E3611F;  /* ember */
+  --temp-fire: #C2410C;  /* deep fire — target reached */
+
+  /* ---- SEMANTIC STATUS -----------------------------------------------------
+     Non-cooking states. Cool slate = system/waiting/connecting/docked/cold.
+     Done is communicated with the ember language (flood + check), NOT green. */
+  --status-idle:    #4A7DB5;  /* connecting / authenticating / waiting / docked */
+  --done:           #E3611F;  /* target reached -> ember (brand), not traffic-green */
+  --warning:        #E0A93C;  /* low battery, stale bridge */
+  --danger:         #DC2626;  /* BT off, auth failed, disconnected error */
+
+  /* ---- NEUTRALS — LIGHT (default) -----------------------------------------
+     CLEAN, COOL-NEUTRAL whites — modern instrument, not paper/cream. Surfaces
+     read as white; greys are neutral-to-faintly-cool, never warm/tan. */
+  --bg:        #F3F4F6;  /* clean cool-grey white — page */
+  --bg-sunken: #E8EAEE;  /* recessed wells, track backgrounds */
+  --surface:   #FFFFFF;  /* cards, sheets — pure white */
+  --surface-2: #F5F6F8;  /* subtly deeper card */
+  --fg1:       #191B20;  /* primary text — neutral near-black */
+  --fg2:       #5C616B;  /* secondary — cool stone-grey */
+  --fg3:       #8D929B;  /* tertiary / muted labels — cool grey */
+  --line:      #E2E4E9;  /* hairline borders — do real separation work now */
+  --line-strong: #C8CCD3;
+  --scrim:     rgba(30,26,21,0.45);
+
+  /* tinted fills (chips, ghost buttons, selected rows) */
+  --ember-tint:  rgba(227,97,31,0.10);
+  --ember-tint-2:rgba(227,97,31,0.16);
+  --slate-tint:  rgba(74,125,181,0.12);
+
+  /* ---- SPACING (8pt base) -------------------------------------------------- */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+  --sp-12: 48px; --sp-16: 64px; --sp-20: 80px;
+
+  /* ---- RADII ---------------------------------------------------------------
+     Tighter, more precise/instrument than pillowy. */
+  --r-sm: 9px;    /* chips, small controls */
+  --r-md: 13px;   /* buttons, inputs */
+  --r-lg: 16px;   /* cards */
+  --r-xl: 22px;   /* hero panels, sheets */
+  --r-pill: 999px;
+
+  /* ---- ELEVATION --------------------------------------------------------------
+     FLAT BY DEFAULT. Separation comes from crisp hairline borders + tonal
+     surfaces, not drop shadows. The only thing that truly floats is the bottom
+     sheet (a real overlay), so only --shadow-3 carries weight. */
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: 0 -1px 0 var(--line-strong), 0 -16px 40px rgba(28,32,40,0.10);  /* bottom sheet only */
+  --shadow-ember: none;  /* ember buttons are flat now */
+
+  /* ---- MOTION -------------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);   /* settle — most transitions */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur: 240ms;
+  --dur-slow: 420ms;
+
+  /* ---- TYPE SCALE (semantic) ----------------------------------------------- */
+  --type-hero-temp: 800 clamp(120px, 34vw, 280px)/0.9 var(--font-display);
+  --type-display:   800 clamp(40px, 7vw, 64px)/1.02 var(--font-display);
+  --type-h1: 800 34px/1.08 var(--font-display);
+  --type-h2: 700 24px/1.15 var(--font-display);
+  --type-h3: 700 19px/1.25 var(--font-ui);
+  --type-body: 400 17px/1.5 var(--font-ui);
+  --type-body-strong: 600 17px/1.5 var(--font-ui);
+  --type-label: 600 15px/1.3 var(--font-ui);
+  --type-caption: 500 13px/1.35 var(--font-ui);
+  --type-overline: 700 12px/1.2 var(--font-ui);
+  --type-mono: 500 14px/1.4 var(--font-mono);
+
+  --tracking-tight: -0.02em;
+  --tracking-overline: 0.12em;
+}
+
+/* ---- DARK (warm charcoal / smoke) ----------------------------------------- */
+:root[data-theme="dark"], .theme-dark {
+  --bg:        #16110E;  /* warm smoke-charcoal */
+  --bg-sunken: #0E0B09;
+  --surface:   #211A16;
+  --surface-2: #2A211C;
+  --fg1:       #F6EFE9;  /* warm ink */
+  --fg2:       #B39C8D;  /* warm muted */
+  --fg3:       #7D6B5E;
+  --line:      rgba(255,255,255,0.09);
+  --line-strong: rgba(255,255,255,0.16);
+  --scrim:     rgba(0,0,0,0.6);
+
+  --ember:        #FF6B2C;  /* brighter on dark */
+  --done:         #FF6B2C;
+  --ember-tint:   rgba(255,107,44,0.14);
+  --ember-tint-2: rgba(255,107,44,0.22);
+  --slate-tint:   rgba(127,168,201,0.16);
+
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-3: 0 -1px 0 var(--line-strong), 0 -16px 44px rgba(0,0,0,0.55);
+  --shadow-ember: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#16110E; --bg-sunken:#0E0B09; --surface:#211A16; --surface-2:#2A211C;
+    --fg1:#F6EFE9; --fg2:#B39C8D; --fg3:#7D6B5E;
+    --line:rgba(255,255,255,0.09); --line-strong:rgba(255,255,255,0.16);
+    --scrim:rgba(0,0,0,0.6);
+    --ember:#FF6B2C; --done:#FF6B2C;
+    --ember-tint:rgba(255,107,44,0.14); --ember-tint-2:rgba(255,107,44,0.22);
+    --slate-tint:rgba(127,168,201,0.16);
+    --shadow-1:none;
+    --shadow-2:none;
+    --shadow-3:0 -1px 0 var(--line-strong), 0 -16px 44px rgba(0,0,0,0.55);
+    --shadow-ember:none;
+  }
+}
+
+/* ---- Ambient glow — a whisper of ember, not a wash --------------------------
+   Idle surfaces read clean and white; the warm bloom only intensifies via the
+   `.reached`/cooking states layered on top. */
+.bbq-glow {
+  background-image:
+    radial-gradient(120% 70% at 50% -12%, rgba(227,97,31,0.045), transparent 58%);
+}
+
+/* ---- Semantic helper classes (optional convenience) ----------------------- */
+.t-display { font: var(--type-display); letter-spacing: var(--tracking-tight); }
+.t-h1 { font: var(--type-h1); letter-spacing: var(--tracking-tight); }
+.t-h2 { font: var(--type-h2); }
+.t-h3 { font: var(--type-h3); }
+.t-body { font: var(--type-body); }
+.t-label { font: var(--type-label); }
+.t-caption { font: var(--type-caption); color: var(--fg3); }
+.t-overline { font: var(--type-overline); letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--fg3); }
+.t-mono { font: var(--type-mono); }

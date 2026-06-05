@@ -4,16 +4,13 @@ import os
 import UIKit
 #endif
 
-/// When linked, POST probe readings to the relay so your OpenClaw can watch the cook.
+/// When linked, POST multi-probe readings to the relay so your OpenClaw can watch the cook.
 ///
 /// BLE-driven (NOT a wall-clock timer): ThermometerManager pokes `onStateChange`
-/// on every reading and connection change. The probe streams ~1/sec, and those
-/// Bluetooth wake-ups also fire while the app is backgrounded (the
-/// `bluetooth-central` mode), so pushes keep going with the screen off — which a
-/// `Timer` does not, because iOS freezes timers while the app is suspended.
+/// on every reading and connection change.
 ///
-/// Cadence: throttled to ~every 20s; immediate on target-reached; one final
-/// `connected:false` when the link drops. No-ops when unlinked.
+/// Cadence: throttled to ~every 20s; immediate when any probe newly reaches target;
+/// one final push when all probes disconnect. No-ops when unlinked.
 @MainActor
 final class BridgeClient: ObservableObject {
     @Published private(set) var lastPushAt: Date?
@@ -21,21 +18,12 @@ final class BridgeClient: ObservableObject {
 
     private let thermo: ThermometerManager
     private let log = Logger(subsystem: "com.bbqlaw.app", category: "bridge")
-    private var lastTargetReachedPush = false
+    private var reachedProbeIds: Set<UUID> = []
     private var targetPushInFlight = false
-    private var wasConnected = false
+    private var wasAnyConnected = false
     private var lastAttemptAt: Date?
     private var consecutiveFailures = 0
     private let pushInterval: TimeInterval = 20
-
-    private struct ThermoSnapshot {
-        let connected: Bool
-        let tempF: Double?
-        let targetF: Double
-        let base: Int?
-        let probe: Int?
-        let targetReached: Bool
-    }
 
     private enum PushKind {
         case heartbeat
@@ -53,60 +41,44 @@ final class BridgeClient: ObservableObject {
         if !BridgeKeychain.isLinked { lastPushError = nil }
     }
 
-    /// Manual retry / immediate push (e.g. a "retry" button).
     func pushNow() {
-        Task { await pushReading(snapshot: captureSnapshot(), kind: .forced) }
+        Task { await pushReading(kind: .forced) }
     }
 
-    private func captureSnapshot() -> ThermoSnapshot {
-        let connected = thermo.connection == .connected
-        return ThermoSnapshot(
-            connected: connected,
-            tempF: connected ? thermo.temperatureF : nil,
-            targetF: thermo.targetF,
-            base: thermo.baseBattery,
-            probe: thermo.probeBattery,
-            targetReached: thermo.targetReached
-        )
-    }
+    private var anyConnected: Bool { thermo.anyConnected }
 
-    /// Driven by ThermometerManager on every BLE reading / connection change.
     private func onThermoUpdate() {
         guard BridgeKeychain.isLinked else { return }
-        let snapshot = captureSnapshot()
 
-        // Link dropped -> tell the agent the feed ended (vs just going stale).
-        if !snapshot.connected {
-            if wasConnected {
-                wasConnected = false
-                lastTargetReachedPush = false
+        if !anyConnected {
+            if wasAnyConnected {
+                wasAnyConnected = false
+                reachedProbeIds.removeAll()
                 targetPushInFlight = false
-                Task { await pushReading(snapshot: snapshot, kind: .disconnect) }
+                Task { await pushReading(kind: .disconnect) }
             }
             return
         }
-        wasConnected = true
+        wasAnyConnected = true
 
-        // Rising edge of target reached -> push now (same path as the local alarm).
-        if snapshot.targetReached {
-            if !lastTargetReachedPush, !targetPushInFlight {
-                targetPushInFlight = true
-                Task { await pushReading(snapshot: snapshot, kind: .target) }
-                return
-            }
-            if targetPushInFlight { return }
-        } else {
-            lastTargetReachedPush = false
+        let newlyReached = thermo.probes.filter { $0.isReached && !reachedProbeIds.contains($0.id) }
+        if let probe = newlyReached.first, !targetPushInFlight {
+            targetPushInFlight = true
+            Task { await pushReading(kind: .target, markReached: probe.id) }
+            return
+        }
+        if targetPushInFlight { return }
+
+        for probe in thermo.probes where !probe.isReached {
+            reachedProbeIds.remove(probe.id)
         }
 
-        // Otherwise a throttled heartbeat — gate here so we don't spawn a Task
-        // for every ~1/sec reading (uses last attempt + backoff, not last success).
         let effectiveInterval = pushInterval * Double(1 + min(consecutiveFailures, 5))
         if let last = lastAttemptAt, Date().timeIntervalSince(last) < effectiveInterval - 1 { return }
-        Task { await pushReading(snapshot: snapshot, kind: .heartbeat) }
+        Task { await pushReading(kind: .heartbeat) }
     }
 
-    private func pushReading(snapshot: ThermoSnapshot, kind: PushKind) async {
+    private func pushReading(kind: PushKind, markReached: UUID? = nil) async {
         guard BridgeKeychain.isLinked, let creds = BridgeKeychain.credentials else { return }
 
         let bypassThrottle = kind != .heartbeat
@@ -121,15 +93,13 @@ final class BridgeClient: ObservableObject {
 
         let payload = IngestPayload(
             device: creds.deviceId,
-            tempF: snapshot.connected ? snapshot.tempF : nil,
-            targetF: snapshot.targetF,
-            battery: .init(base: snapshot.base, probe: snapshot.probe),
-            connected: snapshot.connected,
-            ts: Int(Date().timeIntervalSince1970)
+            ts: Int(Date().timeIntervalSince1970),
+            probes: thermo.probes.map { probePayload($0) }
         )
 
         var request = URLRequest(url: creds.ingestURL)
         request.httpMethod = "POST"
+        request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(creds.deviceToken)", forHTTPHeaderField: "Authorization")
         request.httpBody = try? JSONEncoder().encode(payload)
@@ -140,8 +110,8 @@ final class BridgeClient: ObservableObject {
             lastPushAt = Date()
             lastPushError = nil
             consecutiveFailures = 0
-            if kind == .target {
-                lastTargetReachedPush = true
+            if kind == .target, let id = markReached {
+                reachedProbeIds.insert(id)
                 targetPushInFlight = false
             }
         } else {
@@ -150,6 +120,22 @@ final class BridgeClient: ObservableObject {
                 targetPushInFlight = false
             }
         }
+    }
+
+    private func probePayload(_ probe: Probe) -> IngestProbe {
+        IngestProbe(
+            id: probe.id.uuidString,
+            name: probe.name,
+            color: probe.colorHexString,
+            tempF: probe.connection == .connected ? probe.tempF : nil,
+            targetF: probe.targetF,
+            meat: meat(forKey: probe.meatKey)?.name,
+            doneness: probe.doneness,
+            mode: probe.mode.rawValue,
+            probeBattery: probe.probeBattery,
+            baseBattery: probe.baseBattery,
+            connected: probe.connection == .connected
+        )
     }
 
     private func performNetworkPush(request: URLRequest) async -> Bool {
@@ -184,16 +170,22 @@ final class BridgeClient: ObservableObject {
     }
 
     private struct IngestPayload: Encodable {
-        struct Battery: Encodable {
-            let base: Int?
-            let probe: Int?
-        }
-
         let device: String
-        let tempF: Double?
-        let targetF: Double
-        let battery: Battery
-        let connected: Bool
         let ts: Int
+        let probes: [IngestProbe]
+    }
+
+    private struct IngestProbe: Encodable {
+        let id: String
+        let name: String
+        let color: String
+        let tempF: Double?
+        let targetF: Double?
+        let meat: String?
+        let doneness: String?
+        let mode: String
+        let probeBattery: Int?
+        let baseBattery: Int?
+        let connected: Bool
     }
 }
