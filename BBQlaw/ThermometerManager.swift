@@ -2,6 +2,9 @@ import Foundation
 import CoreBluetooth
 import UserNotifications
 import os
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Per-peripheral transient BLE state (not published — the display half lives in `Probe`).
 final class ProbeSession {
@@ -258,6 +261,10 @@ final class ThermometerManager: NSObject, ObservableObject {
         content.sound = .default
         let req = UNNotificationRequest(identifier: "bbqlaw.target.\(name)", content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req)
+        #if canImport(UIKit)
+        // Haptic on the rising edge (no-op when backgrounded).
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        #endif
     }
 
     // MARK: Persistence
@@ -350,6 +357,11 @@ extension ThermometerManager: CBCentralManagerDelegate {
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         let id = peripheral.identifier
+        guard sessions[id] != nil else {
+            // Probe was removed during the connect window — don't resurrect it.
+            central.cancelPeripheralConnection(peripheral)
+            return
+        }
         sessions[id]?.userInitiatedDisconnect = false
         mutate(id) { $0.connection = .connected }
         lastError = nil
@@ -425,7 +437,13 @@ extension ThermometerManager: CBPeripheralDelegate {
         case ProbeGATT.tempChar:
             switch decodeProbeReading(data) {
             case .fahrenheit(let f):
-                mutate(id) { p in p.tempF = f; p.mode = .live; p.readingNote = nil }
+                mutate(id) { p in
+                    p.tempF = f; p.mode = .live; p.readingNote = nil
+                    p.recentTemps.append(f)
+                    if p.recentTemps.count > 60 {
+                        p.recentTemps.removeFirst(p.recentTemps.count - 60)
+                    }
+                }
                 evaluateAlarm(id)
             case .docked:
                 mutate(id) { p in

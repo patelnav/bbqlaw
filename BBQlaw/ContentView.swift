@@ -104,6 +104,14 @@ struct ContentView: View {
     private func monitoringContent(active: Probe) -> some View {
         BBQHeroTemp(probe: active, useCelsius: useCelsius, reached: active.isReached)
 
+        if active.mode == .live, active.recentTemps.count >= 2 {
+            BBQSparkline(
+                samples: active.recentTemps,
+                color: active.hasTarget ? BBQ.ember : BBQ.tempCool
+            )
+            .padding(.horizontal, 4)
+        }
+
         if thermo.probes.count > 1 {
             BBQProbeRail(
                 probes: thermo.probes,
@@ -136,13 +144,18 @@ struct ContentView: View {
         )
     }
 
+    // Only speaks up when the feed goes quiet — live activity is shown by the
+    // sparkline, so a "just now" line would be noise.
     @ViewBuilder
     private func freshnessLine(_ probe: Probe) -> some View {
         if let last = probe.lastReadingAt {
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                Text("Updated \(bbqRelativeAge(last))")
-                    .font(BBQ.ui(11.5, weight: .medium))
-                    .foregroundStyle(BBQ.fg3)
+                let age = Int(Date().timeIntervalSince(last))
+                if age >= 8 {
+                    Label("Last reading \(bbqRelativeAge(last))", systemImage: "exclamationmark.triangle.fill")
+                        .font(BBQ.ui(11.5, weight: .semibold))
+                        .foregroundStyle(BBQ.warning)
+                }
             }
         }
     }

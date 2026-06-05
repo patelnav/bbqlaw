@@ -66,6 +66,7 @@ struct Probe: Identifiable, Equatable {
     var readingNote: String?
     var advertisedName: String?
     var lastReadingAt: Date?     // when we last heard a reading from this probe
+    var recentTemps: [Double] = []   // rolling buffer of recent °F samples (live trace)
 
     // Alarm bookkeeping (so a mid-cook reconnect doesn't re-fire).
     var targetReached: Bool = false

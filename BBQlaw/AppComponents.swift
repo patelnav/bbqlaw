@@ -165,6 +165,75 @@ struct BBQSheetHeader: View {
     }
 }
 
+// MARK: - Live sparkline (recent temperature trace)
+
+struct BBQSparkline: View {
+    let samples: [Double]
+    var color: Color = BBQ.ember
+    var height: CGFloat = 46
+
+    var body: some View {
+        GeometryReader { geo in
+            let pts = points(in: geo.size)
+            ZStack {
+                if pts.count >= 2 {
+                    // Soft fill under the line.
+                    Path { p in
+                        p.move(to: CGPoint(x: pts[0].x, y: geo.size.height))
+                        pts.forEach { p.addLine(to: $0) }
+                        p.addLine(to: CGPoint(x: pts[pts.count - 1].x, y: geo.size.height))
+                        p.closeSubpath()
+                    }
+                    .fill(LinearGradient(colors: [color.opacity(0.16), color.opacity(0.0)],
+                                         startPoint: .top, endPoint: .bottom))
+                    // The trace.
+                    Path { p in
+                        p.move(to: pts[0])
+                        pts.dropFirst().forEach { p.addLine(to: $0) }
+                    }
+                    .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    // Pulsing head — the "it's live" tell.
+                    PulsingDot(color: color).position(pts[pts.count - 1])
+                }
+            }
+        }
+        .frame(height: height)
+        .animation(.easeOut(duration: 0.35), value: samples)
+        .accessibilityHidden(true)
+    }
+
+    private func points(in size: CGSize) -> [CGPoint] {
+        guard samples.count >= 2 else { return [] }
+        let lo = samples.min() ?? 0
+        let hi = samples.max() ?? 1
+        let range = max(1, hi - lo)
+        let n = samples.count
+        let topPad: CGFloat = 4, botPad: CGFloat = 4
+        let h = size.height - topPad - botPad
+        return samples.enumerated().map { i, v in
+            let x = size.width * CGFloat(i) / CGFloat(n - 1)
+            let y = topPad + h * (1 - CGFloat((v - lo) / range))
+            return CGPoint(x: x, y: y)
+        }
+    }
+}
+
+private struct PulsingDot: View {
+    var color: Color
+    @State private var on = false
+    var body: some View {
+        ZStack {
+            Circle().fill(color.opacity(0.25))
+                .frame(width: 16, height: 16)
+                .scaleEffect(on ? 1.0 : 0.4)
+                .opacity(on ? 0 : 0.8)
+            Circle().fill(color).frame(width: 6, height: 6)
+        }
+        .animation(.easeOut(duration: 1.2).repeatForever(autoreverses: false), value: on)
+        .onAppear { on = true }
+    }
+}
+
 // MARK: - Top bar
 
 struct BBQTopBar: View {
