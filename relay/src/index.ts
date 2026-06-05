@@ -103,7 +103,7 @@ async function handlePair(
   }
 
   const deviceToken = randomToken();
-  const readerToken = randomToken();
+  const readerToken = await uniqueSlug(env);
   await storePairTokens(env, device, deviceToken, readerToken);
 
   const base = publicBase(url, env);
@@ -445,6 +445,46 @@ function randomId(length: number): string {
   const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
   const bytes = crypto.getRandomValues(new Uint8Array(length));
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+// Friendly two-word reader-token slugs (e.g. "smoky-brisket"). Short + memorable;
+// low entropy by design, so the feed is obscured, not secret. Collisions are
+// avoided at mint time (and a numeric suffix is appended as a last resort).
+const SLUG_ADJ = [
+  "smoky", "charred", "ember", "ashen", "glowing", "searing", "sizzling", "toasty",
+  "spicy", "savory", "tender", "juicy", "crispy", "hearty", "rustic", "peppery",
+  "tangy", "sweet", "smoldering", "blazing", "roasted", "grilled", "cured", "brined",
+  "golden", "amber", "crimson", "dusky", "warm", "slow", "prime", "bold",
+  "rich", "zesty", "fiery", "oaken", "mellow", "smoked", "glazed", "crackling",
+  "hickory", "mesquite", "molten", "crusty", "sticky", "burnt", "lush", "bronzed",
+  "humble", "happy", "lazy", "merry", "snappy", "cozy", "brisk", "dapper",
+  "jolly", "nimble", "plucky", "spry", "wily", "zippy", "chunky", "frosty",
+];
+const SLUG_NOUN = [
+  "brisket", "ribs", "ember", "coal", "smoke", "flame", "grill", "kettle",
+  "probe", "char", "rub", "bark", "flank", "chuck", "rump", "shank",
+  "wing", "drum", "loin", "chop", "skewer", "oak", "pecan", "spark",
+  "cinder", "pit", "flare", "blaze", "sizzle", "sear", "tongs", "apron",
+  "platter", "rack", "spit", "wood", "lump", "briquette", "marrow", "crust",
+  "burger", "steak", "roast", "wings", "pork", "turkey", "salmon", "sausage",
+  "patty", "fillet", "thigh", "breast", "tip", "round", "blade", "plate",
+  "ash", "heat", "glow", "fire", "stoke", "char", "lick", "smolder",
+];
+
+async function uniqueSlug(env: Env): Promise<string> {
+  for (let i = 0; i < 6; i++) {
+    const slug = randomSlug();
+    const existing = await env.RELAY.get(`token:${await hashToken(slug)}`);
+    if (!existing) return slug;
+  }
+  // Extremely unlikely fallback: disambiguate with two digits.
+  const digits = crypto.getRandomValues(new Uint8Array(2));
+  return `${randomSlug()}-${digits[0] % 10}${digits[1] % 10}`;
+}
+
+function randomSlug(): string {
+  const r = crypto.getRandomValues(new Uint8Array(2));
+  return `${SLUG_ADJ[r[0] % SLUG_ADJ.length]}-${SLUG_NOUN[r[1] % SLUG_NOUN.length]}`;
 }
 
 function randomToken(): string {
