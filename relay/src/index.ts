@@ -41,6 +41,10 @@ interface TokenRecord {
 
 const PAIR_RATE_LIMIT = 10;
 const PAIR_RATE_WINDOW_SECONDS = 60;
+// Brute-force throttle for the short feed slug: max invalid reader-token attempts
+// per IP per window (legit readers send a valid token and never count).
+const READER_FAIL_LIMIT = 30;
+const READER_FAIL_WINDOW_SECONDS = 60;
 const HISTORY_CAP = 60;
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -374,17 +378,36 @@ async function requireReader(
 ): Promise<{ device: string } | { error: string; status: number }> {
   const token = bearer(request);
   if (!token) return { error: "missing bearer token", status: 401 };
+
+  // Validate first so a VALID token is never throttled (legit polling is always
+  // allowed, even from a shared/NAT'd IP). Reader tokens are scoped to the
+  // current pairing — re-pairing revokes old ones (tokens minted before this
+  // check have no curreader key and stay valid).
   const record = await lookupToken(env, token);
-  if (!record || record.type !== "reader") {
-    return { error: "invalid reader token", status: 401 };
+  if (record && record.type === "reader") {
+    const currentReader = await env.RELAY.get(`device:${record.device}:curreader`);
+    if (!currentReader || currentReader === (await hashToken(token))) {
+      return { device: record.device };
+    }
   }
-  // Reader tokens are scoped to the current pairing — re-pairing revokes old ones.
-  // (Tokens minted before this check have no curreader key and stay valid.)
-  const currentReader = await env.RELAY.get(`device:${record.device}:curreader`);
-  if (currentReader && currentReader !== (await hashToken(token))) {
-    return { error: "token superseded", status: 401 };
+
+  // Invalid / superseded: the feed slug is short, so throttle brute-force
+  // enumeration by counting failures per IP.
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const fails = Number((await env.RELAY.get(`readerfail:${ip}`)) ?? "0");
+  await noteReaderFailure(env, ip);
+  if (fails >= READER_FAIL_LIMIT) {
+    return { error: "rate limit exceeded", status: 429 };
   }
-  return { device: record.device };
+  return { error: "invalid reader token", status: 401 };
+}
+
+async function noteReaderFailure(env: Env, ip: string): Promise<void> {
+  const key = `readerfail:${ip}`;
+  const n = Number((await env.RELAY.get(key)) ?? "0");
+  await env.RELAY.put(key, String(n + 1), {
+    expirationTtl: READER_FAIL_WINDOW_SECONDS,
+  });
 }
 
 async function storePairTokens(
