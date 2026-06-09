@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BBQlaw — Privacy Policy</title>
+<meta name="description" content="BBQlaw keeps your cooking data on your device. No account, no tracking, no ads." />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="/favicon.png" sizes="64x64" type="image/png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta name="theme-color" content="#16110E" />
+<link rel="stylesheet" href="/colors_and_type.css" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { font-family: var(--font-ui); background: var(--bg); color: var(--fg1); line-height: 1.6;
+    -webkit-font-smoothing: antialiased; }
+  a { color: var(--ember); }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 0 24px; }
+  nav { padding: 24px 0; }
+  .mark { display: inline-flex; align-items: center; font: 800 22px var(--font-display); letter-spacing: -.03em; text-decoration: none; color: var(--fg1); }
+  .mark .q { display: inline-flex; margin: 0 -1px; }
+  .mark .law { color: var(--ember); }
+  h1 { font: 800 38px var(--font-display); letter-spacing: -.02em; margin: 28px 0 6px; }
+  .eff { color: var(--fg3); font-size: 14px; margin: 0 0 28px; }
+  h2 { font: 700 19px var(--font-display); margin: 30px 0 6px; }
+  p { margin: 0 0 14px; color: var(--fg2); }
+  p strong, li strong { color: var(--fg1); }
+  ul { margin: 0 0 14px; padding-left: 20px; color: var(--fg2); }
+  li { margin-bottom: 6px; }
+  footer { border-top: 1px solid var(--line); margin-top: 40px; padding: 24px 0 56px; color: var(--fg3); font-size: 13.5px; }
+</style>
+</head>
+<body class="bbq-glow">
+<div class="wrap">
+  <nav><a class="mark" href="/">BB<span class="q" id="navmark"></span><span class="law">law</span></a></nav>
+
+  <h1>Privacy Policy</h1>
+  <p class="eff">Effective June 2026</p>
+
+  <p>BBQlaw is built to keep your cooking on your device. <strong>No account, no tracking, no ads.</strong> There is no sign-in, no analytics or advertising SDKs, and BBQlaw does not track you across apps or websites.</p>
+
+  <h2>Local by default</h2>
+  <p>Your iPhone reads the thermometer directly over Bluetooth. Temperatures, targets, probe names, and cook settings stay on your device. To arm the alarm, BBQlaw also writes your target back to the thermometer itself — nowhere else.</p>
+
+  <h2>The OpenClaw bridge (optional, opt-in)</h2>
+  <p>If — and only if — you tap <strong>“Link to your OpenClaw,”</strong> BBQlaw connects to our relay at <strong>bbqlaw.app</strong> and forwards your live cook so your own AI agent can read it. What's sent:</p>
+  <ul>
+    <li>Current temperature, target, “to go,” and connection status</li>
+    <li>Probe name and color, and probe/base battery levels</li>
+    <li>A randomly generated device identifier and a reader token</li>
+  </ul>
+  <p>This is <strong>not tied to your name, email, or any account</strong> — there are none. The relay keeps only the latest reading and a short rolling history, keyed to that random token. Anyone you give the share link to can read that cook. Tap <strong>Unlink</strong> anytime to revoke the token and stop forwarding.</p>
+
+  <h2>What we never ask for</h2>
+  <p>BBQlaw never requests your name, email, contacts, location, or photos. Bluetooth access is used solely to talk to your thermometer.</p>
+
+  <h2>Children</h2>
+  <p>BBQlaw is rated 4+ and collects no personal data.</p>
+
+  <h2>Changes</h2>
+  <p>If these practices change, we'll update this page and its effective date.</p>
+
+  <h2>Contact</h2>
+  <p>Questions? <a href="mailto:hello@bbqlaw.app">hello@bbqlaw.app</a></p>
+
+  <footer>BBQlaw is an independent project. Not affiliated with, endorsed by, or sponsored by any thermometer manufacturer.</footer>
+</div>
+<script>
+  navmark.innerHTML = `<svg width="22" height="22" viewBox="0 0 120 120"><defs><linearGradient id="we" x1="10%" y1="5%" x2="90%" y2="100%"><stop offset="0" stop-color="#F7B23E"/><stop offset=".55" stop-color="#E3611F"/><stop offset="1" stop-color="#C2410C"/></linearGradient></defs><g transform="rotate(-45 60 60)"><path fill="url(#we)" d="M52 92 L68 92 L72 112 Q72 115 69 115 L51 115 Q48 115 48 112 Z"/><path fill="url(#we)" fill-rule="evenodd" d="M16 56 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0 Z M35.5 41 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M65.5 41 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M35.5 71 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M65.5 71 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z"/></g></svg>`;
+</script>
+</body>
+</html>
