@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="BBQlaw app icon">
+  <title>BBQlaw app icon</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A211C"></stop>
+      <stop offset="1" stop-color="#16110E"></stop>
+    </linearGradient>
+    <linearGradient id="bbqEmber" x1="10%" y1="5%" x2="90%" y2="100%">
+      <stop offset="0" stop-color="#F7B23E"></stop>
+      <stop offset="0.55" stop-color="#E3611F"></stop>
+      <stop offset="1" stop-color="#C2410C"></stop>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="27" fill="url(#tile)"></rect>
+  <g transform="translate(60 60) scale(0.64) translate(-60 -60)">
+    <g transform="rotate(-45 60 60)">
+      <path fill="url(#bbqEmber)" d="M52 92 L68 92 L72 112 Q72 115 69 115 L51 115 Q48 115 48 112 Z"></path>
+      <path fill="url(#bbqEmber)" fill-rule="evenodd" d="M16 56 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0 Z M35.5 41 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M65.5 41 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M35.5 71 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z M65.5 71 a9.5 9.5 0 1 0 19 0 a9.5 9.5 0 1 0 -19 0 Z"></path>
+    </g>
+  </g>
+</svg>
