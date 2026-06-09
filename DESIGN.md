@@ -1,159 +1,281 @@
-# BBQlaw — Design System
-
-> The instrument for cooks who don't want another login. **The temperature is the hero.**
-
-BBQlaw is a free, fully-local iOS app for cheap white-label BLE meat thermometers
-(INT-11I-B class probes). The phone talks straight to the probe over Bluetooth —
-no account, no cloud, no vendor app — and can optionally forward the live cook to
-your own OpenClaw agent.
-
-This document is the canonical design reference. The tokens here are **implemented**
-in `BBQlaw/DesignSystem.swift` (iOS) and `web/colors_and_type.css` (web); build
-on-brand by using them rather than hardcoding values.
-
+---
+version: alpha
+name: BBQlaw
+description: A glanceable, fully-local BLE meat-thermometer instrument. The temperature is the hero — a clean cool-neutral surface wrapped around a warm ember hearth.
+colors:
+  # ── Literal palette ──────────────────────────────────────────────
+  ember: "#E3611F"          # signature brand orange + hot end of the ramp
+  ember-bright: "#FF6B2C"   # dark-mode / glow variant
+  ember-deep: "#C2410C"     # pressed / deep fire
+  temp-cold: "#4A7DB5"      # cool slate-blue — far from target / inactive
+  temp-cool: "#7FA8C9"
+  temp-warm: "#E0A93C"      # amber / gold — climbing
+  temp-fire: "#C2410C"      # deep fire — at target
+  red: "#DC2626"
+  white: "#FFFFFF"
+  bg: "#F3F4F6"             # page — clean cool-grey white
+  bg-sunken: "#E8EAEE"      # wells, slider tracks
+  surface: "#FFFFFF"        # cards, sheets
+  surface-2: "#F5F6F8"
+  ink: "#191B20"            # primary text
+  ink-2: "#5C616B"          # secondary
+  ink-3: "#8D929B"          # tertiary / muted
+  line: "#E2E4E9"           # hairline borders
+  line-strong: "#C8CCD3"
+  # Per-probe identity colors
+  probe-1: "#E3611F"
+  probe-2: "#4A7DB5"
+  probe-3: "#E0A93C"
+  probe-4: "#7A9B57"
+  # Dark mode (warm smoke-charcoal)
+  bg-dark: "#16110E"
+  surface-dark: "#211A16"
+  ink-dark: "#F6EFE9"
+  # ── Semantic aliases ─────────────────────────────────────────────
+  primary: "{colors.ember}"
+  secondary: "{colors.temp-cold}"
+  tertiary: "{colors.temp-warm}"
+  neutral: "{colors.bg}"
+  accent: "{colors.ember}"
+  done: "{colors.ember}"          # target reached is ember, NOT green
+  warning: "{colors.temp-warm}"
+  danger: "{colors.red}"
+  status-idle: "{colors.temp-cold}"
+  on-primary: "{colors.white}"
+  on-surface: "{colors.ink}"
+typography:
+  hero:
+    fontFamily: Nunito
+    fontSize: 120px
+    fontWeight: 800
+    lineHeight: 0.9
+    letterSpacing: -0.03em
+  display:
+    fontFamily: Nunito
+    fontSize: 64px
+    fontWeight: 800
+    lineHeight: 1.02
+    letterSpacing: -0.02em
+  h1:
+    fontFamily: Nunito
+    fontSize: 34px
+    fontWeight: 800
+    lineHeight: 1.08
+    letterSpacing: -0.02em
+  h2:
+    fontFamily: Nunito
+    fontSize: 24px
+    fontWeight: 700
+    lineHeight: 1.15
+  h3:
+    fontFamily: Hanken Grotesk
+    fontSize: 19px
+    fontWeight: 700
+    lineHeight: 1.25
+  body-md:
+    fontFamily: Hanken Grotesk
+    fontSize: 17px
+    fontWeight: 400
+    lineHeight: 1.5
+  body-strong:
+    fontFamily: Hanken Grotesk
+    fontSize: 17px
+    fontWeight: 600
+    lineHeight: 1.5
+  label:
+    fontFamily: Hanken Grotesk
+    fontSize: 15px
+    fontWeight: 600
+    lineHeight: 1.3
+  caption:
+    fontFamily: Hanken Grotesk
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 1.35
+  overline:
+    fontFamily: Hanken Grotesk
+    fontSize: 12px
+    fontWeight: 700
+    lineHeight: 1.2
+    letterSpacing: 0.12em
+  mono:
+    fontFamily: JetBrains Mono
+    fontSize: 14px
+    fontWeight: 500
+    lineHeight: 1.4
+rounded:
+  sm: 9px       # chips, small controls
+  md: 13px      # buttons, inputs
+  lg: 16px      # cards
+  xl: 22px      # hero panels, sheets
+  pill: 999px
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  page-x: 18px      # horizontal screen padding
+  stack-gap: 13px   # vertical gap between stacked cards
+  card-pad: 18px    # interior card padding
+components:
+  button-primary:
+    backgroundColor: "{colors.ember}"
+    textColor: "{colors.white}"
+    typography: "{typography.body-strong}"
+    rounded: "{rounded.md}"
+    padding: 15px
+  button-bordered:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-strong}"
+    rounded: "{rounded.md}"
+    padding: 15px
+  card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.lg}"
+    padding: "{spacing.card-pad}"
+  status-pill:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink-2}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 8px
+  status-pill-live:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.done}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 8px
+  status-pill-idle:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.status-idle}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 8px
+  hero-temp:
+    backgroundColor: "{colors.bg}"
+    textColor: "{colors.ember}"
+    typography: "{typography.hero}"
+  probe-chip:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.probe-1}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: 9px
+  button-danger:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.danger}"
+    typography: "{typography.body-strong}"
+    rounded: "{rounded.md}"
+    padding: 15px
+  alert-warning:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.warning}"
+    typography: "{typography.caption}"
+    padding: 14px
 ---
 
-## The product, in one breath
+## Overview
 
-A glanceable instrument used **outdoors at the grill or smoker** — looked at from
-across the yard, one-handed, greasy hands, bright sun, over cooks that run hours.
-The home screen's single job: show **the current probe temperature and whether it
-hit the target — instantly, from a distance.** Status is communicated through
-**color, size, and one icon — never sentences.**
+**Concept: an instrument with a hearth.** Apple-like restraint (the chrome gets out
+of the way) wrapped around a warm Americana-BBQ soul (fire, smoke, ember). A
+glanceable instrument used outdoors at the grill — looked at from across the yard,
+one-handed, greasy hands, bright sun, over cooks that run hours. The home screen's
+single job: show **the current probe temperature and whether it hit the target —
+instantly, from a distance.** Status is communicated through color, size, and one
+icon — never sentences.
 
-### The five rules that make something feel like BBQlaw
-1. **The temperature is the hero** — huge, tabular, ember-colored; everything else is quiet.
-2. **Status = color + size + one icon, never a sentence.** Cool slate = waiting / inactive / docked; ember = cooking **and done** (done is ember, *not* traffic-green); amber/red are rare and icon-paired.
-3. **The screen warms as the cook climbs** — the `temp-cold → temp-fire` ramp.
-4. **Clean cool-neutral white** (never cream/paper); warm smoke-charcoal in dark.
-5. **Terse, confident copy.** Sentence case, second person, numbers do the talking. No emoji in the UI.
+**Voice:** terse, confident, a little dry — numbers do the talking. Second person,
+sentence case everywhere (overlines are the one small-caps exception). No emoji in
+functional UI (`🔥` is a sparing brand garnish; `🦞` only when referring to
+OpenClaw). Always show degree + unit (`203°F`); whole degrees for the hero.
 
-### Hardware truth (don't design around features that don't exist)
-- **Food-temp only** — no ambient/pit sensor. Never show a grill/pit temperature.
-- Temperature arrives as `FF01` notify: 2-byte little-endian, **°F × 100**.
-- Two battery levels — **probe** and **base**.
-- The probe **sleeps ~10 min** without a keep-awake; a stale reading means "probe asleep / bridge dropped," **not** "cook finished."
-- Meaningful target band: **80–212 °F**.
+**The five rules:**
+1. The temperature is the hero — huge, tabular, ember.
+2. Status = color + size + one icon, never a sentence.
+3. The screen warms as the cook climbs (`temp-cold → temp-fire`).
+4. Clean cool-neutral white, never cream/paper; warm smoke-charcoal in dark.
+5. Terse, confident copy. Sentence case, second person.
 
----
+## Colors
 
-## Voice & copy
+The palette is clean cool-neutrals with a single warm signature — **ember**.
 
-- **Person:** second person, implied. "Your probe's temperature." Rarely "we." Never corporate marketing-speak.
-- **Length:** shortest thing that works. UI labels are 1–3 words (`Target`, `Probe`, `Base`, `Linked`). Full sentences only in helper text / landing page.
-- **Casing:** **sentence case** everywhere (not Title Case, not ALL CAPS). Overlines are the one small-caps exception, used sparingly.
-- **Confidence over hedging:** `Target reached`, not "It looks like your target may have been reached!"
-- **Honesty:** independent/unofficial project; plain, unhyped disclaimer energy.
-- **Emoji:** `🔥` as a sparing brand garnish only; `🦞` only when literally referring to OpenClaw. Functional UI state is icon + color, never emoji.
-- **Units:** always show degree + unit (`203°F`); `°F`/`°C` toggle lives in Settings. Whole degrees for the hero (no decimals across the yard).
+- **ember (`#E3611F`):** *the* brand color and the hot end of the temperature ramp.
+  Brightens to `ember-bright` (`#FF6B2C`) on dark.
+- **Temperature ramp** (`temp-cold → temp-cool → temp-warm → ember → temp-fire`):
+  the cook's narrative. The hero tick-gauge and ambient glow warm as the cook climbs.
+- **Semantic split that makes it glanceable:** cool slate (`status-idle`) =
+  waiting / connecting / docked / cold; ember (`done`) = cooking **and done** —
+  done is ember, *not* traffic-green. `warning`/`danger` are rare and icon-paired.
+- **Neutrals are clean & cool** — surfaces read as white at a glance (`bg #F3F4F6`,
+  `surface #FFFFFF`), never paper/cream. The ember stays the only warm note.
+- **Dark mode** is warm smoke-charcoal (`bg-dark #16110E`, `surface-dark #211A16`,
+  `ink-dark #F6EFE9`); ember shifts to `ember-bright`.
+- **Per-probe identity colors** (`probe-1..4`) color-code multiple probes.
 
----
+## Typography
 
-## Logo — BB◉law
+- **Display + hero numerals — Nunito** (≈ SF Pro Rounded on iOS): rounded, friendly,
+  ferociously legible at huge sizes. The temperature is `hero` — ~800 weight,
+  tabular so digits don't jump, tight tracking.
+- **UI / body — Hanken Grotesk** (≈ SF Pro Text): neutral Swiss; gets out of the way.
+- **Mono — JetBrains Mono** (≈ SF Mono): link codes, hex (`FF01`), device IDs,
+  technical readouts like `TARGET 203°F · 27° TO GO`.
+- Overlines are the only uppercase (`0.12em` tracking), used sparingly.
 
-The wordmark is **BB◉law**, read *"BB-claw"* — a pun on **BBQ** + **claw** (OpenClaw).
-The rotated **kettle-damper mark is the Q** (a disc with four punched holes + a slide
-tab whose tail becomes the Q's descender), and the **"◉law" runs in one ember color**.
+> iOS ships the SF system equivalents (SF Pro Rounded / Text / Mono); the Google
+> Fonts trio above is the canonical, redistributable web/design-system stand-in.
 
-- iOS: `BBQlaw/Logo.swift` — `Logo(size:)` (wordmark) + `DamperMarkView(size:)` (the mark, recreated as a SwiftUI `Shape` with even-odd fill + ember gradient).
-- App icon: ember damper on a warm smoke-charcoal tile (`Assets.xcassets/AppIcon`).
-- The mark is custom vector — not from any icon set.
+## Layout
 
----
+- **8pt spacing rhythm.** `page-x` (18px) for horizontal screen padding, `stack-gap`
+  (13px) between stacked cards, `card-pad` (18px) inside cards. Generous breathing
+  room — this is a calm app.
+- **Big touch targets** — 44px minimum, 56px+ preferred (greasy hands, glanced-at use).
+- **Single column, centered, one hierarchy.** The hero temperature owns the top third;
+  the status pill is fixed at the top; cards stack with `stack-gap`.
 
-## Color
+## Elevation & Depth
 
-Defined in `BBQ` (`DesignSystem.swift`); both light + dark ship, default light.
+**Flat by default — no drop shadows.** Cards are solid `surface` on a slightly cooler
+`bg`, separated by a crisp hairline `line` border. The borders do the work; the UI
+reads flat, structural, instrument-like. The **only** element that floats is the
+bottom sheet (the lone real overlay). No glassmorphism. An ambient ember glow blooms
+softly from the top and intensifies at target — the signature background motif.
 
-### Brand / ember (the signature)
-| Token | Light | Dark |
-|---|---|---|
-| `ember` | `#E3611F` | `#FF6B2C` |
-| `emberDeep` (pressed) | `#C2410C` | — |
+## Shapes
 
-Ember is *the* brand color and the hot end of the data ramp.
+Tight, precise radii (not pillowy): `sm` 9px (chips), `md` 13px (buttons/inputs),
+`lg` 16px (cards), `xl` 22px (hero panels / sheets), `pill` fully round.
 
-### Temperature ramp (the cook's narrative, cold → hot)
-`tempCold #4A7DB5` (cool slate) → `tempCool #7FA8C9` → `tempWarm #E0A93C` (amber) →
-`tempHot #E3611F` (ember) → `tempFire #C2410C` (deep fire, at target). The screen
-literally warms as the cook climbs (hero tick-gauge + ambient glow).
+## Components
 
-### Semantic status
-- `statusIdle #4A7DB5` — connecting / authenticating / waiting / docked / cold.
-- `done` = ember (`#E3611F` / `#FF6B2C`) — **reached is ember, not green**.
-- `warning #E0A93C`, `danger #DC2626` — rare, always icon-paired.
+- **button-primary:** flat ember fill, white text, `md` radius — no glow. Press
+  scales to ~0.97 with a deeper fill.
+- **button-bordered:** `surface` fill, `ink` text, hairline `line-strong` border.
+- **card:** `surface` + hairline `line` border, `lg` radius, no shadow.
+- **status-pill:** floating capsule at the top; ember tint + ember text when live,
+  slate tint + slate text when idle/connecting (with a slow pulsing dot).
+- Hero tick-gauge, live sparkline, gradient target slider (cold→ember), probe rail,
+  and the meat picker compose the tokens above. See `BBQlaw/AppComponents.swift`.
 
-### Neutrals — clean & cool (not paper)
-| Token | Light | Dark (warm smoke-charcoal) |
-|---|---|---|
-| `bg` (page) | `#F3F4F6` | `#16110E` |
-| `surface` (cards) | `#FFFFFF` | `#211A16` |
-| `fg1 / fg2 / fg3` | `#191B20 / #5C616B / #8D929B` | `#F6EFE9 / #B39C8D / #7D6B5E` |
-| `line / lineStrong` | `#E2E4E9 / #C8CCD3` | white @ 9% / 16% |
+## Do's and Don'ts
 
-Surfaces read as white at a glance; the ember stays the only warm note. Tinted
-fills: `emberTint`, `slateTint`. Per-probe identity colors: `probeColors`
-(`#E3611F`, `#4A7DB5`, `#E0A93C`, `#7A9B57`).
+- **Do** make the temperature the loudest thing on screen; communicate state with
+  color + size + one icon.
+- **Do** keep surfaces flat — separate with hairlines, not shadows.
+- **Don't** use traffic-light green for "done" — done speaks ember.
+- **Don't** show a pit/ambient temperature — the hardware has only a food probe.
+- **Don't** use emoji to carry UI meaning, or bluish-purple gradients, or
+  cream/paper neutrals.
 
----
-
-## Type
-
-| Role | iOS (shipping) | Web / design system |
-|---|---|---|
-| Display + hero numerals | **SF Pro Rounded**, heavy, tabular | Nunito 800 |
-| UI / body | **SF Pro Text** (system) | Hanken Grotesk |
-| Mono (codes, hex, readouts) | **SF Mono** | JetBrains Mono |
-
-In code: `BBQ.display(_:weight:)` (rounded), `BBQ.ui(_:weight:)`, `BBQ.mono(_:weight:)`.
-The hero number is huge, ember (or `fg1` with no target), and tabular so digits don't
-jump. Tight tracking on big display; overlines are the only uppercase.
-
----
-
-## Surfaces, layout & motion
-
-**FLAT — no drop shadows.** Cards are solid `surface` on a cooler `bg`, separated by a
-crisp hairline `line` border. The borders do the work; the UI reads flat, structural,
-instrument-like. The **only** floating element is the bottom sheet. No glassmorphism.
-
-- **Radii:** chips 9, buttons/inputs 13, cards 16, hero panels/sheets 22, pills round (`BBQ.R`).
-- **Helpers:** `.bbqCard()` (flat surface + hairline), `.bbqGlow(reached:)` (ambient ember glow from the top, intensifies at target).
-- **Spacing:** 8pt scale; generous breathing room. Touch targets 44px min, 56px+ preferred (greasy hands).
-- **Layout:** single column, centered, one hierarchy. Hero owns the top third; status pill at top; cards stack with gap.
-- **Motion:** `ease-out` settle (140/240/420ms); numbers cross-fade (`contentTransition(.numericText())`). The one expressive moment is **target-reached** (a single warm pulse + flood, then rest — no infinite loops on an hours-long screen). Connecting/waiting get a slow pulse on the status dot. Respect `prefers-reduced-motion`.
-- **Press:** scale to ~0.97 + deeper fill. **Disabled:** 40% opacity.
-
----
-
-## Iconography
-
-- **iOS uses Apple SF Symbols** — `thermometer.medium`, `battery.100`/`.bolt`, `gearshape`, `checkmark.seal.fill`, `bell`, `link`, `magnifyingglass`, `chevron.right`, `pencil`, `speaker.slash.fill`/`speaker.wave.2.fill`, etc.
-- **Web** uses a curated inline-SVG set (Lucide-style, 24-grid, ~1.75 stroke, `currentColor`) since SF Symbols aren't redistributable.
-- No emoji in functional UI. Status is always a real icon + color.
-
----
-
-## Screen structure (iOS — `ContentView.swift` + `AppComponents.swift`)
-
-Progressive disclosure, per Apple HIG:
-- **Onboarding-first:** with no probe, the whole screen is "Add your thermometer" (no top-bar chrome). A connecting probe shows the pairing state.
-- **Monitoring (≥1 probe):** top bar = `Logo` + (gear → Settings); status pill (with count) + a live freshness line that only warns when the feed goes quiet; then the active probe's hero.
-- **Hero:** probe-name overline, huge number, then — no-target → "No target set"; reached → seal-check + "Target reached"; climbing → a 30-tick thermometer gauge (cold→ember) + mono `TARGET 203°F · N° TO GO`. A **live sparkline** of recent temps shows activity.
-- **Target card:** editable probe **name** (decoupled from the cook), a "Cooking" row → meat picker, a gradient target slider (80–212), and an alert line (no toggle — reaching the target *is* the alert).
-- **Probe rail:** appears only with 2+ probes; switches the active probe + "Add".
-- **Settings sheet (gear):** inset-grouped — **Units** (°F/°C), **Devices** (list + per-device mute + remove + "Add device"), **Automations** (the OpenClaw link, buried here per HIG with its explanation as the footer).
-- Sheets are native; only the sheet floats.
-
-### States the UI must make obvious without reading
-Live temperature · target set vs reached · no-reading vs docked/charging ·
-Bluetooth connected / authenticating / waiting / off · linked to OpenClaw (yes/no).
-
----
-
-## Where it lives in code
-- `BBQlaw/DesignSystem.swift` — color/type/radii tokens, `bbqCard`, `bbqGlow`, temp ramp.
-- `BBQlaw/Logo.swift` — the BB◉law wordmark + damper mark.
-- `BBQlaw/AppComponents.swift` — primitives + app pieces (status pill, hero, tick gauge, sparkline, target card, probe rail, meat picker, settings, scanner).
-- `BBQlaw/ContentView.swift` — the single-screen orchestrator + flow.
-- `web/colors_and_type.css` — the shared web token source (same palette/ramp).
+<!--
+  Source of truth for design tokens (Google Stitch DESIGN.md format).
+  Validate:  npx @google/design.md lint DESIGN.md
+  Export:    npx @google/design.md export --format css-tailwind DESIGN.md   (or dtcg / json-tailwind)
+  Implemented in: BBQlaw/DesignSystem.swift (iOS) · web/colors_and_type.css (web).
+  Not a Tailwind project — consume via the Swift BBQ.* tokens / CSS vars.
+-->
