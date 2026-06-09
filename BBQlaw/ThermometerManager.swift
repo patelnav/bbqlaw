@@ -53,6 +53,7 @@ final class ThermometerManager: NSObject, ObservableObject {
     private var central: CBCentralManager!
     private var sessions: [UUID: ProbeSession] = [:]
     private var persisted: [String: PersistedCook] = [:]
+    private var deviceTargetWork: [UUID: DispatchWorkItem] = [:]
 
     override init() {
         super.init()
@@ -110,6 +111,8 @@ final class ThermometerManager: NSObject, ObservableObject {
             session.peripheral.delegate = nil
         }
         sessions[id] = nil
+        deviceTargetWork[id]?.cancel()
+        deviceTargetWork[id] = nil
         probes.removeAll { $0.id == id }
         persisted[id.uuidString] = nil
         persistCooks()
@@ -138,6 +141,7 @@ final class ThermometerManager: NSObject, ObservableObject {
             }
         }
         saveCook(id); onStateChange?()
+        scheduleDeviceTargetSync(id)
     }
 
     /// Apply a meat/doneness selection (and its preset target, unless nil/custom).
@@ -148,6 +152,15 @@ final class ThermometerManager: NSObject, ObservableObject {
             if let target { p.targetF = target; p.hasFiredAlarm = false; p.targetReached = false }
         }
         evaluateAlarm(id); saveCook(id); onStateChange?()
+        scheduleDeviceTargetSync(id)
+    }
+
+    func setBaseMuted(_ id: UUID, _ muted: Bool) {
+        mutate(id) { $0.baseMuted = muted }
+        saveCook(id); onStateChange?()
+        if probes.first(where: { $0.id == id })?.authState == .authed {
+            setDeviceBuzzer(id, muted: muted)
+        }
     }
 
     /// Push the probe's target to the base station so its physical buzzer arms at temp.
@@ -192,6 +205,19 @@ final class ThermometerManager: NSObject, ObservableObject {
         session.peripheral.writeValue(Data(payload), for: ctrl, type: .withResponse)
     }
 
+    /// Clear the base-station target alarm for a probe.
+    func clearDeviceTarget(_ id: UUID) {
+        guard let probe = probes.first(where: { $0.id == id }),
+              probe.authState == .authed,
+              let session = sessions[id],
+              let ctrl = session.controlCharacteristic else { return }
+        let payload: [UInt8] = frame(0x01, [0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
+            + frame(0x23, [0x01, 0x00, 0x00, 0x00, 0x00])
+        let payloadHex = hex(payload)
+        log.notice("deviceTargetClear[\(id.uuidString, privacy: .public)]: -> \(payloadHex, privacy: .public)")
+        session.peripheral.writeValue(Data(payload), for: ctrl, type: .withResponse)
+    }
+
     // MARK: Helpers
     private func mutate(_ id: UUID, _ block: (inout Probe) -> Void) {
         guard let idx = probes.firstIndex(where: { $0.id == id }) else { return }
@@ -211,11 +237,32 @@ final class ThermometerManager: NSObject, ObservableObject {
         bytes.map { String(format: "%02x", $0) }.joined(separator: " ")
     }
 
+    private func applyDeviceTarget(_ id: UUID) {
+        guard let probe = probes.first(where: { $0.id == id }) else { return }
+        if let target = probe.targetF {
+            setDeviceTarget(id, highF: target)
+        } else {
+            clearDeviceTarget(id)
+        }
+    }
+
+    private func scheduleDeviceTargetSync(_ id: UUID) {
+        deviceTargetWork[id]?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.deviceTargetWork[id] = nil
+            self.applyDeviceTarget(id)
+        }
+        deviceTargetWork[id] = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
     private func makeProbe(id: UUID, advertisedName: String?) -> Probe {
         if let saved = persisted[id.uuidString] {
             return Probe(id: id, name: saved.name, colorHex: saved.colorHex,
                          meatKey: saved.meatKey, doneness: saved.doneness, targetF: saved.targetF,
-                         connection: .connecting, advertisedName: advertisedName)
+                         connection: .connecting, advertisedName: advertisedName,
+                         baseMuted: saved.baseMuted ?? false)
         }
         let index = probes.count
         let colorHex = BBQ.probeColorsHex[index % BBQ.probeColorsHex.count]
@@ -283,6 +330,10 @@ final class ThermometerManager: NSObject, ObservableObject {
                 if body.first == 0 {
                     mutate(id) { $0.authState = .authed }
                     lastError = nil
+                    applyDeviceTarget(id)
+                    if let probe = probes.first(where: { $0.id == id }) {
+                        setDeviceBuzzer(id, muted: probe.baseMuted)
+                    }
                 } else {
                     mutate(id) { $0.authState = .failed }
                     lastError = "auth rejected (status \(body.first ?? 0xFF))"
@@ -331,6 +382,7 @@ final class ThermometerManager: NSObject, ObservableObject {
         var meatKey: String?
         var doneness: String?
         var targetF: Double?
+        var baseMuted: Bool?
     }
 
     private func loadCooks() {
@@ -343,7 +395,7 @@ final class ThermometerManager: NSObject, ObservableObject {
         guard let p = probes.first(where: { $0.id == id }) else { return }
         persisted[id.uuidString] = PersistedCook(
             name: p.name, colorHex: p.colorHex, meatKey: p.meatKey,
-            doneness: p.doneness, targetF: p.targetF
+            doneness: p.doneness, targetF: p.targetF, baseMuted: p.baseMuted
         )
         persistCooks()
     }

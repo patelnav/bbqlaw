@@ -72,6 +72,9 @@ struct Probe: Identifiable, Equatable {
     var targetReached: Bool = false
     var hasFiredAlarm: Bool = false
 
+    /// Per-probe base-station buzzer mute (persisted across reconnects).
+    var baseMuted: Bool = false
+
     var color: Color { Color(hex: colorHex) }
 
     /// `#RRGGBB` for bridge / relay payloads.
