@@ -1,4 +1,8 @@
-# BBQlaw 🔥
+<p align="center">
+  <img src="BBQlaw/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" width="116" alt="BBQlaw logo" />
+</p>
+
+<h1 align="center">BBQlaw</h1>
 
 A free, fully-local iOS app for cheap BLE meat thermometers (INT-11I-B class).
 Your iPhone talks straight to the probe over Bluetooth — **no account, no cloud,
@@ -7,6 +11,10 @@ no vendor app.** Connect, watch the temperature, get pinged when it hits target.
 **The probe I used:** [this INT-11I-B on Temu](https://share.temu.com/sdv124AbN4A) (~$15). Any INT-11I-B-class probe should work.
 
 > Status: working on real hardware — polishing toward TestFlight.
+
+<p align="center">
+  <img src="web/app-shot.png" width="280" alt="BBQlaw showing a live probe temperature climbing toward its target." />
+</p>
 
 ## What it does
 
