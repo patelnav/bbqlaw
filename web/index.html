@@ -55,6 +55,17 @@
   .statusline .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ember); animation: pulse 2s infinite; }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(227,97,31,.5); } 70% { box-shadow: 0 0 0 9px rgba(227,97,31,0); } 100% { box-shadow: 0 0 0 0 rgba(227,97,31,0); } }
 
+  .cta { margin-top: 30px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; border: none; border-radius: 14px;
+    padding: 15px 24px; font: 700 16px var(--font-ui); cursor: pointer; text-decoration: none;
+    background: var(--ember); color: #fff; transition: transform .12s var(--ease-out); }
+  .btn:active { transform: scale(.98); }
+  .btn svg { width: 22px; height: 22px; }
+  .ghnav { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--fg1);
+    border: 1.5px solid var(--line-strong); border-radius: 999px; padding: 8px 16px; font: 700 14px var(--font-ui); }
+  .ghnav:hover { border-color: var(--ember); color: var(--ember); }
+  .ghnav svg { width: 18px; height: 18px; }
+
   /* Real app screenshot in a minimal bezel */
   .shot { justify-self: center; width: 280px; background: #17120e; padding: 10px;
     border-radius: 46px; border: 1px solid var(--line-strong); }
@@ -78,20 +89,22 @@
     <span class="mark">BB<span class="q" id="navmark"></span><span class="law">law</span></span>
     <div class="navlinks">
       <a href="openclaw/" class="hidesm">Link your agent</a>
-      <span class="soon">Coming soon</span>
+      <a class="ghnav" href="https://github.com/patelnav/bbqlaw"><span id="ghnav"></span> GitHub</a>
     </div>
   </nav>
 
   <header class="hero">
     <div>
       <h1>Your probe's temperature.<br>On your phone. <span class="accent">Off the cloud.</span></h1>
-      <p class="lede">A free iOS app for wireless BLE meat thermometers. Your iPhone reads the probe directly over Bluetooth — no account, no cloud. Just the number you're cooking to.</p>
       <div class="chips">
         <span class="chip" id="chip1">100% local Bluetooth</span>
-        <span class="chip" id="chip2">Alerts in the background</span>
-        <span class="chip" id="chip3">Free, no account</span>
+        <span class="chip" id="chip2">Free, no account</span>
+        <span class="chip" id="chip3">Open source</span>
       </div>
-      <div class="statusline"><span class="dot"></span> Coming soon to TestFlight</div>
+      <div class="cta">
+        <a class="btn" href="https://github.com/patelnav/bbqlaw"><span id="ghbtn"></span> Build it with us on GitHub</a>
+      </div>
+      <div class="statusline"><span class="dot"></span> Free &amp; open source · TestFlight soon</div>
     </div>
 
     <div class="shot">
@@ -113,9 +126,12 @@
   navmark.innerHTML = damper(25);
   footmark.innerHTML = damper(19);
   const icon = (inner) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  const gh = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.37.5 0 5.78 0 12.29c0 5.2 3.44 9.6 8.21 11.16.6.11.82-.26.82-.58 0-.28-.01-1.04-.02-2.04-3.34.71-4.04-1.58-4.04-1.58-.55-1.37-1.34-1.74-1.34-1.74-1.09-.73.08-.72.08-.72 1.2.08 1.84 1.21 1.84 1.21 1.07 1.79 2.81 1.27 3.5.97.11-.76.42-1.27.76-1.56-2.67-.3-5.47-1.31-5.47-5.84 0-1.29.47-2.34 1.24-3.17-.12-.3-.54-1.52.12-3.16 0 0 1.01-.32 3.3 1.21a11.5 11.5 0 0 1 6 0c2.29-1.53 3.3-1.21 3.3-1.21.66 1.64.24 2.86.12 3.16.77.83 1.24 1.88 1.24 3.17 0 4.54-2.81 5.54-5.49 5.83.43.37.81 1.1.81 2.22 0 1.61-.01 2.9-.01 3.29 0 .32.22.7.83.58A12.01 12.01 0 0 0 24 12.29C24 5.78 18.63.5 12 .5z"/></svg>`;
+  ghnav.innerHTML = gh(18);
+  ghbtn.innerHTML = gh(22);
   chip1.insertAdjacentHTML('afterbegin', icon('<path d="m7 7 10 10-5 5V2l5 5L7 17"/>'));
-  chip2.insertAdjacentHTML('afterbegin', icon('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'));
-  chip3.insertAdjacentHTML('afterbegin', icon('<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>'));
+  chip2.insertAdjacentHTML('afterbegin', icon('<circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/>'));
+  chip3.insertAdjacentHTML('afterbegin', gh(18));
 </script>
 </body>
 </html>
