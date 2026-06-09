@@ -184,7 +184,7 @@ final class ThermometerManager: NSObject, ObservableObject {
         let payload = frame(0x01, frame1Body) + frame(0x23, frame2Body)
         let payloadHex = hex(payload)
         log.notice("deviceTarget[\(id.uuidString, privacy: .public)]: -> \(payloadHex, privacy: .public)")
-        session.peripheral.writeValue(Data(payload), for: ctrl, type: .withResponse)
+        session.peripheral.writeValue(Data(payload), for: ctrl, type: .withoutResponse)
     }
 
     /// Mute or set base-station buzzer volume (1 = low … 3 = high).
@@ -202,7 +202,7 @@ final class ThermometerManager: NSObject, ObservableObject {
         }
         let payloadHex = hex(payload)
         log.notice("deviceBuzzer[\(id.uuidString, privacy: .public)]: -> \(payloadHex, privacy: .public)")
-        session.peripheral.writeValue(Data(payload), for: ctrl, type: .withResponse)
+        session.peripheral.writeValue(Data(payload), for: ctrl, type: .withoutResponse)
     }
 
     /// Clear the base-station target alarm for a probe.
@@ -215,7 +215,7 @@ final class ThermometerManager: NSObject, ObservableObject {
             + frame(0x23, [0x01, 0x00, 0x00, 0x00, 0x00])
         let payloadHex = hex(payload)
         log.notice("deviceTargetClear[\(id.uuidString, privacy: .public)]: -> \(payloadHex, privacy: .public)")
-        session.peripheral.writeValue(Data(payload), for: ctrl, type: .withResponse)
+        session.peripheral.writeValue(Data(payload), for: ctrl, type: .withoutResponse)
     }
 
     // MARK: Helpers

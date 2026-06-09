@@ -128,7 +128,7 @@ private struct BBQPressButtonStyle: ButtonStyle {
 
 struct BBQTargetSlider: View {
     @Binding var value: Double
-    var range: ClosedRange<Double> = 85...212
+    var range: ClosedRange<Double> = 80...212
 
     var body: some View {
         GeometryReader { geo in
