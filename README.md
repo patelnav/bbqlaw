@@ -36,6 +36,19 @@ xcodegen generate      # regenerate BBQlaw.xcodeproj from project.yml
 open BBQlaw.xcodeproj   # run on a real iPhone — BLE doesn't work in the Simulator
 ```
 
+## Roadmap
+
+- **More thermometers — without app-store updates.** BBQlaw speaks one protocol
+  today (INT-11I-B). Open-sourcing it is how we get to many. The plan: a
+  pass-through driver model (React Native-style). The native app owns the BLE
+  plumbing and the UI; each thermometer is a small **adapter** — declarative where
+  it can be (service/characteristic UUIDs, decode rules, command frames), with a
+  little JS (via JavaScriptCore) where it needs real logic, like a CRC or an auth
+  handshake. Adapters load over the air, so a new probe ships as an adapter, not a
+  new build. **Want yours supported? Sniff its BLE, write an adapter, open a PR.**
+- TestFlight → App Store (free).
+- Cook history + graph.
+
 ## Contribute
 
 Open and free — issues and PRs very welcome. The code is the documentation; start
