@@ -13,7 +13,7 @@ final class BridgeLinkManager: ObservableObject {
     @Published private(set) var lastError: String?
     @Published private(set) var lastSuccess: String?
 
-    private let log = Logger(subsystem: "com.bbqlaw.app", category: "bridge")
+    private let log = Logger(subsystem: "app.bbqlaw.ios", category: "bridge")
 
     init() {
         applyStoredCredentials()

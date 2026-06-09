@@ -17,7 +17,7 @@ final class BridgeClient: ObservableObject {
     @Published private(set) var lastPushError: String?
 
     private let thermo: ThermometerManager
-    private let log = Logger(subsystem: "com.bbqlaw.app", category: "bridge")
+    private let log = Logger(subsystem: "app.bbqlaw.ios", category: "bridge")
     private var reachedProbeIds: Set<UUID> = []
     private var targetPushInFlight = false
     private var wasAnyConnected = false

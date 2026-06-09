@@ -3,7 +3,7 @@ import Security
 
 /// Keychain storage for bridge credentials (device token + ingest URL).
 enum BridgeKeychain {
-    private static let service = "com.bbqlaw.bridge"
+    private static let service = "app.bbqlaw.ios.bridge"
     private static let account = "credentials"
 
     private enum LegacyKey {

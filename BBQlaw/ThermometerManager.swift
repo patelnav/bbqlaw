@@ -32,7 +32,7 @@ final class ThermometerManager: NSObject, ObservableObject {
     private enum Keys {
         static let cooks = "bbqlaw.cooks.v2"   // [uuidString: PersistedCook]
     }
-    private static let restoreIdentifier = "com.bbqlaw.central"
+    private static let restoreIdentifier = "app.bbqlaw.ios.central"
 
     // MARK: Published state
     @Published var probes: [Probe] = []
@@ -47,7 +47,7 @@ final class ThermometerManager: NSObject, ObservableObject {
 
     // MARK: Internals
     private let defaults = UserDefaults.standard
-    private let log = Logger(subsystem: "com.bbqlaw.app", category: "ble")
+    private let log = Logger(subsystem: "app.bbqlaw.ios", category: "ble")
     /// °F multiplier for device target frames (flip to 10.0 if on-device test alarms early).
     private let deviceTempScale = 100.0
     private var central: CBCentralManager!
