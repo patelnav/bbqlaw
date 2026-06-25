@@ -10,7 +10,7 @@ no vendor app.** Connect, watch the temperature, get pinged when it hits target.
 
 **The probe I used:** [this INT-11I-B on Temu](https://share.temu.com/sdv124AbN4A) (~$15). Any INT-11I-B-class probe should work.
 
-> Status: working on real hardware — polishing toward TestFlight.
+> Status: live on the App Store. [Download BBQlaw](https://apps.apple.com/us/app/bbqlaw/id6778857765).
 
 <p align="center">
   <img src="web/app-shot.png" width="280" alt="BBQlaw showing a live probe temperature climbing toward its target." />
@@ -46,7 +46,6 @@ open BBQlaw.xcodeproj   # run on a real iPhone — BLE doesn't work in the Simul
   little JS (via JavaScriptCore) where it needs real logic, like a CRC or an auth
   handshake. Adapters load over the air, so a new probe ships as an adapter, not a
   new build. **Want yours supported? Sniff its BLE, write an adapter, open a PR.**
-- TestFlight → App Store (free).
 - Cook history + graph.
 
 ## Contribute

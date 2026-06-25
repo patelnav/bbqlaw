@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
 # Preview: https://bbqlaw-relay.<account>.workers.dev/api/...
-# Production route (once bbqlaw.app DNS is live):
+# Production route:
 routes = [{ pattern = "bbqlaw.app/api/*", zone_name = "bbqlaw.app" }]
 
 [[kv_namespaces]]

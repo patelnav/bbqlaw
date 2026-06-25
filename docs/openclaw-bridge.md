@@ -3,9 +3,9 @@
 Forward live probe readings off the phone so an AI agent can watch a cook and
 message someone when it's done. The phone becomes the bridge.
 
-> Status: **implemented** (relay Worker + iOS in-app pairing). Deploy + DNS for
-> `bbqlaw.app` still required for production; BLE pipeline not yet confirmed on
-> live hardware (see README roadmap).
+> Status: **implemented and deployed** (relay Worker on `bbqlaw.app` + iOS
+> in-app pairing). BBQlaw is live on the App Store; the bridge still depends on
+> the phone staying near the probe and alive in the background.
 
 ## The use case
 
@@ -160,22 +160,16 @@ relay stays a pipe: pair, ingest, latest.
 - Server-side receive timestamps drive staleness, so a wrong phone clock can't
   mask a dead bridge.
 
-## Caveats to handle when building
+## Caveats to handle
 
-- **Hardware not yet validated.** The BLE decode (README roadmap) isn't
-  confirmed on a live probe, so true end-to-end can't be tested until that
-  works. We can build + mock the relay→agent path so it's ready.
 - **Probe sleeps ~10 min** without a keep-awake. The agent's watch must read
   staleness as "lost," not "done."
 - **iOS background limits.** `bluetooth-central` + state restoration keep BBQlaw
   alive across reconnects, but iOS can still kill it. The agent's staleness
   check is the safety net.
 
-## Build order
+## Current pieces
 
-DNS for `bbqlaw.app` first. Then:
-
-1. **Relay Worker** (pair / ingest / latest) → deploy to a `workers.dev`
-   preview to click through.
-2. **iOS** — `BridgeClient` + in-app pair + Keychain + link row.
+1. **Relay Worker** — pair / ingest / latest on `https://bbqlaw.app/api/...`.
+2. **iOS app** — `BridgeClient` + in-app pair + Keychain + link row.
 3. **OpenClaw agent** — reader token into Secret Manager + the skill paragraph. ~no code.

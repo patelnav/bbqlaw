@@ -30,9 +30,9 @@ npm run deploy
 ```
 
 Preview URL: `https://bbqlaw-relay.<account>.workers.dev/api/...`
+Production URL: `https://bbqlaw.app/api/...`
 
-When `bbqlaw.app` DNS is live, uncomment the `routes` block in `wrangler.toml` and
-redeploy so `/api/*` is served on the production domain.
+The production route for `bbqlaw.app/api/*` is configured in `wrangler.toml`.
 
 ## API
 
