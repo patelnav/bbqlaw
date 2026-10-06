@@ -46,7 +46,7 @@ final class ThermometerManager: NSObject, ObservableObject {
     var onStateChange: (() -> Void)?
 
     // MARK: Internals
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
     private let log = Logger(subsystem: "app.bbqlaw.ios", category: "ble")
     /// °F multiplier for device target frames (flip to 10.0 if on-device test alarms early).
     private let deviceTempScale = 100.0
@@ -55,7 +55,8 @@ final class ThermometerManager: NSObject, ObservableObject {
     private var persisted: [String: PersistedCook] = [:]
     private var deviceTargetWork: [UUID: DispatchWorkItem] = [:]
 
-    override init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         super.init()
         loadCooks()
         central = CBCentralManager(delegate: self, queue: nil, options: [
@@ -127,7 +128,7 @@ final class ThermometerManager: NSObject, ObservableObject {
     func setTarget(_ id: UUID, _ targetF: Double?) {
         mutate(id) { p in
             p.targetF = targetF
-            guard let target = targetF, let temp = p.tempF, p.mode == .live else {
+            guard p.alarmEnabled, let target = targetF, let temp = p.tempF, p.mode == .live else {
                 p.targetReached = false
                 p.hasFiredAlarm = false
                 return
@@ -155,11 +156,38 @@ final class ThermometerManager: NSObject, ObservableObject {
         scheduleDeviceTargetSync(id)
     }
 
+    /// Stop app alerts and clear/mute the base alarm without losing the cook target.
+    func setAlarmEnabled(_ id: UUID, _ enabled: Bool) {
+        guard let existing = probes.first(where: { $0.id == id }),
+              existing.alarmEnabled != enabled else { return }
+        mutate(id) { p in
+            p.alarmEnabled = enabled
+            p.targetReached = false
+            p.hasFiredAlarm = false
+        }
+        if enabled { evaluateAlarm(id) }
+        else {
+            let name = probes.first(where: { $0.id == id })?.name ?? ""
+            let identifiers = ["bbqlaw.target.\(id.uuidString)", "bbqlaw.target.\(name)"]
+            let notifications = UNUserNotificationCenter.current()
+            notifications.removePendingNotificationRequests(withIdentifiers: identifiers)
+            notifications.removeDeliveredNotifications(withIdentifiers: identifiers)
+        }
+        saveCook(id)
+        deviceTargetWork[id]?.cancel()
+        deviceTargetWork[id] = nil
+        applyDeviceTarget(id)
+        if let probe = probes.first(where: { $0.id == id }) {
+            setDeviceBuzzer(id, muted: probe.shouldMuteBaseBuzzer)
+        }
+        onStateChange?()
+    }
+
     func setBaseMuted(_ id: UUID, _ muted: Bool) {
         mutate(id) { $0.baseMuted = muted }
         saveCook(id); onStateChange?()
         if probes.first(where: { $0.id == id })?.authState == .authed {
-            setDeviceBuzzer(id, muted: muted)
+            setDeviceBuzzer(id, muted: probes.first(where: { $0.id == id })?.shouldMuteBaseBuzzer ?? true)
         }
     }
 
@@ -169,6 +197,7 @@ final class ThermometerManager: NSObject, ObservableObject {
               probe.authState == .authed,
               let session = sessions[id],
               let ctrl = session.controlCharacteristic else { return }
+        guard probe.alarmEnabled else { clearDeviceTarget(id); return }
         let probeMask: UInt8 = 0x01
         let mode: UInt8
         let loBytes: [UInt8]
@@ -239,7 +268,7 @@ final class ThermometerManager: NSObject, ObservableObject {
 
     private func applyDeviceTarget(_ id: UUID) {
         guard let probe = probes.first(where: { $0.id == id }) else { return }
-        if let target = probe.targetF {
+        if let target = probe.alarmTargetF {
             setDeviceTarget(id, highF: target)
         } else {
             clearDeviceTarget(id)
@@ -257,12 +286,12 @@ final class ThermometerManager: NSObject, ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
-    private func makeProbe(id: UUID, advertisedName: String?) -> Probe {
+    func makeProbe(id: UUID, advertisedName: String?) -> Probe {
         if let saved = persisted[id.uuidString] {
             return Probe(id: id, name: saved.name, colorHex: saved.colorHex,
                          meatKey: saved.meatKey, doneness: saved.doneness, targetF: saved.targetF,
                          connection: .connecting, advertisedName: advertisedName,
-                         baseMuted: saved.baseMuted ?? false)
+                         baseMuted: saved.baseMuted ?? false, alarmEnabled: saved.alarmEnabled ?? true)
         }
         let index = probes.count
         let colorHex = BBQ.probeColorsHex[index % BBQ.probeColorsHex.count]
@@ -332,7 +361,7 @@ final class ThermometerManager: NSObject, ObservableObject {
                     lastError = nil
                     applyDeviceTarget(id)
                     if let probe = probes.first(where: { $0.id == id }) {
-                        setDeviceBuzzer(id, muted: probe.baseMuted)
+                        setDeviceBuzzer(id, muted: probe.shouldMuteBaseBuzzer)
                     }
                 } else {
                     mutate(id) { $0.authState = .failed }
@@ -348,12 +377,12 @@ final class ThermometerManager: NSObject, ObservableObject {
     private func evaluateAlarm(_ id: UUID) {
         guard let idx = probes.firstIndex(where: { $0.id == id }) else { return }
         var p = probes[idx]
-        guard let t = p.targetF, let temp = p.tempF, p.mode == .live else { return }
+        guard let t = p.alarmTargetF, let temp = p.tempF, p.mode == .live else { return }
         if temp >= t {
             p.targetReached = true
             if !p.hasFiredAlarm {
                 p.hasFiredAlarm = true
-                fireTargetNotification(name: p.name, current: temp, target: t)
+                fireTargetNotification(id: p.id, name: p.name, current: temp, target: t)
             }
         } else if temp < t - 2 {
             p.targetReached = false
@@ -362,12 +391,12 @@ final class ThermometerManager: NSObject, ObservableObject {
         probes[idx] = p
     }
 
-    private func fireTargetNotification(name: String, current: Double, target: Double) {
+    private func fireTargetNotification(id: UUID, name: String, current: Double, target: Double) {
         let content = UNMutableNotificationContent()
         content.title = "🔥 \(name) hit target"
         content.body = String(format: "%@ reached %.0f°F (target %.0f°F).", name, current, target)
         content.sound = .default
-        let req = UNNotificationRequest(identifier: "bbqlaw.target.\(name)", content: content, trigger: nil)
+        let req = UNNotificationRequest(identifier: "bbqlaw.target.\(id.uuidString)", content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req)
         #if canImport(UIKit)
         // Haptic on the rising edge (no-op when backgrounded).
@@ -383,6 +412,7 @@ final class ThermometerManager: NSObject, ObservableObject {
         var doneness: String?
         var targetF: Double?
         var baseMuted: Bool?
+        var alarmEnabled: Bool?
     }
 
     private func loadCooks() {
@@ -395,7 +425,7 @@ final class ThermometerManager: NSObject, ObservableObject {
         guard let p = probes.first(where: { $0.id == id }) else { return }
         persisted[id.uuidString] = PersistedCook(
             name: p.name, colorHex: p.colorHex, meatKey: p.meatKey,
-            doneness: p.doneness, targetF: p.targetF, baseMuted: p.baseMuted
+            doneness: p.doneness, targetF: p.targetF, baseMuted: p.baseMuted, alarmEnabled: p.alarmEnabled
         )
         persistCooks()
     }

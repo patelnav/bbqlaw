@@ -28,3 +28,22 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  BBQlawTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: BBQlawTests
+    dependencies:
+      - target: BBQlaw
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  BBQlaw:
+    build:
+      targets:
+        BBQlaw: all
+    test:
+      targets:
+        - BBQlawTests

@@ -128,7 +128,7 @@ final class BridgeClient: ObservableObject {
             name: probe.name,
             color: probe.colorHexString,
             tempF: probe.connection == .connected ? probe.tempF : nil,
-            targetF: probe.targetF,
+            targetF: probe.alarmTargetF,
             meat: meat(forKey: probe.meatKey)?.name,
             doneness: probe.doneness,
             mode: probe.mode.rawValue,

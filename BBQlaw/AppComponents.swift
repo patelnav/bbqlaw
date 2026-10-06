@@ -413,7 +413,7 @@ struct BBQHeroTemp: View {
                 .padding(.top, 14)
         }
         if !probe.hasTarget {
-            Text("No target set")
+            Text(probe.alarmEnabled ? "No target set" : "Watch only · no alarms")
                 .font(BBQ.ui(14, weight: .semibold))
                 .foregroundStyle(BBQ.fg3)
                 .padding(.top, 14)
@@ -535,6 +535,8 @@ struct BBQTargetCard: View {
         VStack(spacing: 0) {
             nameRow
             BBQHairline()
+            watchModeRow
+            BBQHairline()
             if probe.hasTarget {
                 cookingRow
                 BBQHairline()
@@ -585,6 +587,25 @@ struct BBQTargetCard: View {
             return
         }
         thermo.setName(probe.id, trimmed)
+    }
+
+    private var watchModeRow: some View {
+        Toggle(isOn: Binding(
+            get: { !probe.alarmEnabled },
+            set: { thermo.setAlarmEnabled(probe.id, !$0) }
+        )) {
+            VStack(alignment: .leading, spacing: 3) {
+                Label("Watch only", systemImage: "bell.slash")
+                    .font(BBQ.ui(15, weight: .semibold))
+                Text("No app alerts. Clears the base alarm and mutes its buzzer when connected.")
+                    .font(BBQ.ui(12))
+                    .foregroundStyle(BBQ.fg3)
+            }
+        }
+        .tint(BBQ.ember)
+        .accessibilityIdentifier("watchOnlyToggle")
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
     }
 
     private var cookingRow: some View {
@@ -660,8 +681,13 @@ struct BBQTargetCard: View {
 
     private var noTargetBlock: some View {
         VStack(spacing: 9) {
-            BBQPrimaryButton(title: "Set a target", icon: "bell", kind: .bordered, fullWidth: true, action: onOpenMeat)
-            Text("Watching the temperature. Set a target to get alerted.")
+            BBQPrimaryButton(title: probe.alarmEnabled ? "Set a target" : "Set up an alarm", icon: "bell", kind: .bordered, fullWidth: true) {
+                thermo.setAlarmEnabled(probe.id, true)
+                onOpenMeat()
+            }
+            Text(probe.alarmEnabled
+                 ? "Watching the temperature. Set a target to get alerted."
+                 : "Temperature and graph stay live. Turn off Watch only to restore your saved target.")
                 .font(BBQ.ui(13))
                 .foregroundStyle(BBQ.fg3)
                 .multilineTextAlignment(.center)
@@ -1294,15 +1320,16 @@ struct BBQSettingsSheet: View {
             Button {
                 thermo.setBaseMuted(probe.id, !probe.baseMuted)
             } label: {
-                Image(systemName: probe.baseMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                Image(systemName: probe.shouldMuteBaseBuzzer ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .font(.system(size: 16))
-                    .foregroundStyle(probe.baseMuted ? BBQ.ember : BBQ.fg3)
+                    .foregroundStyle(probe.shouldMuteBaseBuzzer ? BBQ.ember : BBQ.fg3)
                     .padding(.leading, 12)
                     .padding(.vertical, 15)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(probe.baseMuted ? "Unmute base buzzer for \(probe.name)" : "Mute base buzzer for \(probe.name)")
+            .disabled(!probe.alarmEnabled)
+            .accessibilityLabel(!probe.alarmEnabled ? "Base buzzer muted in Watch only" : (probe.baseMuted ? "Unmute base buzzer for \(probe.name)" : "Mute base buzzer for \(probe.name)"))
 
             Button {
                 onRemoveProbe(probe.id)

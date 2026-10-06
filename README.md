@@ -21,6 +21,10 @@ no vendor app.** Connect, watch the temperature, get pinged when it hits target.
 - Live food temperature, big and glanceable — °F/°C, alerts in the background.
 - Multiple probes at once, each with its own target, name, and cook preset.
 - Arms the thermometer's **own base-station buzzer** at your target.
+- **Watch only** in the probe card keeps the temperature and graph live without
+  target alerts. It saves your target for switching back, clears the base target,
+  and requests buzzer mute when the probe connects. A disconnected base cannot
+  receive the command; firmware safety alarms may remain independent.
 - Optional **OpenClaw bridge** — forward the cook to your own AI agent. Your phone
   stays the Bluetooth bridge; the reading never touches anyone else's account.
 

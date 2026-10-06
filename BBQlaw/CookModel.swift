@@ -75,17 +75,22 @@ struct Probe: Identifiable, Equatable {
     /// Per-probe base-station buzzer mute (persisted across reconnects).
     var baseMuted: Bool = false
 
+    /// Watch only preserves the selected target but disables all target alarms.
+    var alarmEnabled: Bool = true
+    var alarmTargetF: Double? { alarmEnabled ? targetF : nil }
+    var shouldMuteBaseBuzzer: Bool { !alarmEnabled || baseMuted }
+
     var color: Color { Color(hex: colorHex) }
 
     /// `#RRGGBB` for bridge / relay payloads.
     var colorHexString: String { String(format: "#%06X", colorHex) }
 
     /// Has the user set a target yet? (no-target vs with-target mode)
-    var hasTarget: Bool { targetF != nil }
+    var hasTarget: Bool { alarmTargetF != nil }
 
     /// True once a live reading meets/exceeds the target.
     var isReached: Bool {
-        guard let t = targetF, mode == .live, let temp = tempF else { return false }
+        guard let t = alarmTargetF, mode == .live, let temp = tempF else { return false }
         return temp >= t
     }
 
