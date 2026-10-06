@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <meta name="theme-color" content="#16110E" />
 <meta name="robots" content="noindex" />
-<link rel="stylesheet" href="../colors_and_type.css" />
+<link rel="stylesheet" href="/colors_and_type.css" />
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; }
@@ -91,7 +91,7 @@
 <body class="bbq-glow">
 <div class="feed">
   <div class="bar">
-    <a href="../" style="text-decoration:none"><span class="mark">BB<span class="q" id="navmark"></span><span class="law">law</span></span></a>
+    <a href="/" style="text-decoration:none"><span class="mark">BB<span class="q" id="navmark"></span><span class="law">law</span></span></a>
     <span class="arrow">→</span>
     <span class="oc">OpenClaw</span>
     <span class="stream off" id="stream"><span class="pulse"></span><span id="stream-label">offline</span></span>
@@ -106,7 +106,7 @@
     <div class="context">
       <div class="k">Context for the agent</div>
       <p id="context-text">A cook connected their BBQlaw thermometer so you can keep an eye on this cook. New
-      readings stream in roughly every 10&nbsp;seconds — check the timestamps to see what's changed
+      readings stream in roughly every 20&nbsp;seconds — check the timestamps to see what's changed
       since you last looked. They'd like you to <b>track the cook and let them know when something
       happens</b>: a probe hits its target, stalls, or gets pulled.</p>
     </div>
@@ -134,8 +134,8 @@
   </div>
 
   <footer>
-    This panel is what OpenClaw reads on each check-in. <br />
-    Ask it to <b>watch a probe</b> or <b>message someone</b> when a target is reached. · <a href="../">BBQlaw</a>
+    Phone update times do not confirm a fresh probe measurement. <br />
+    Ask it to <b>watch a probe</b> or <b>message someone</b> when a target is reached. · <a href="/">BBQlaw</a>
   </footer>
 </div>
 
@@ -151,6 +151,8 @@
   const sealCheck = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/><path d="M7.8 12.3l2.7 2.7 5.4-5.8" fill="none" stroke="#fff" stroke-width="2.2"/></svg>`;
 
   let snapshot = null;
+  let snapshotFetchedAt = 0;
+  let refreshFailed = false;
   let events = [];
   let sessionMaxTs = 0;
   let pollTimer = null;
@@ -198,6 +200,7 @@
     const mode = p.mode || "noReading";
     if (mode === "docked") return "docked";
     if (mode === "noReading" || !p.connected) return "waiting";
+    if (snapshotAge() > 90) return "stale";
     const temp = p.tempF;
     const target = p.targetF;
     if (temp != null && target != null && temp >= target) return "reached";
@@ -205,7 +208,7 @@
     return "waiting";
   }
 
-  const tagLabel = { reached: "reached", climbing: "climbing", docked: "docked", waiting: "waiting" };
+  const tagLabel = { reached: "reached", climbing: "climbing", docked: "unavailable", waiting: "waiting", stale: "stale" };
 
   function probeColor(p) {
     if (p.color) return p.color;
@@ -223,7 +226,7 @@
     }
     return {
       main: String(Math.round(temp)),
-      cls: st === "reached" ? "reached" : "",
+      cls: st === "reached" ? "reached" : (st === "stale" ? "muted" : ""),
       c: f2c(temp),
     };
   }
@@ -231,10 +234,11 @@
   function metaLine(p) {
     const st = probeState(p);
     const target = p.targetF;
+    if (st === "stale") return "Last reported reading · phone updates stale";
     if (st === "reached" && target != null) {
       return `Target <b>${Math.round(target)}°F</b> · held`;
     }
-    if (st === "docked") return "In the base · not reading";
+    if (st === "docked") return "Temperature unavailable · probe reports no usable reading";
     if (st === "waiting") {
       if (!p.connected) return "Not connected";
       if (p.tempF == null) return "Waiting for a reading";
@@ -325,24 +329,33 @@
     if (sessionMaxTs > 0) localStorage.setItem(LS_KEY, String(sessionMaxTs));
   }
 
+  function snapshotAge() {
+    if (!snapshot || !Number.isFinite(snapshot.ageSeconds)) return Infinity;
+    return Math.max(0, snapshot.ageSeconds) +
+      Math.max(0, Math.floor((Date.now() - snapshotFetchedAt) / 1000));
+  }
+
   function updateFreshMeta() {
     const fresh = document.getElementById("fresh");
     if (!snapshot) {
       fresh.textContent = "—";
       return;
     }
-    const age = snapshot.ageSeconds != null ? snapshot.ageSeconds : 0;
-    fresh.textContent = "updated " + relSeconds(age);
+    const age = snapshotAge();
+    fresh.textContent = (refreshFailed ? "Cannot refresh · last phone update " : "Phone update ") +
+      relSeconds(age) + (age > 90 ? " · stale" : "");
+    setStream(!refreshFailed && age <= 90);
   }
 
   function tickRelative() {
     document.querySelectorAll("[data-age]").forEach((el) => {
-      el.textContent = "updated " + relSeconds(Number(el.dataset.age) || 0);
+      el.textContent = "Phone update " + relSeconds(snapshotAge());
     });
     document.querySelectorAll(".since [data-ts]").forEach((el) => {
       const ts = Number(el.dataset.ts);
       if (ts) el.textContent = relSeconds(Math.floor(Date.now() / 1000) - ts);
     });
+    renderProbes();
     updateFreshMeta();
   }
 
@@ -405,7 +418,9 @@
       document.getElementById("fresh").textContent = "waiting for phone";
       document.getElementById("probes").innerHTML = "";
     } else if (latestRes.ok && latestBody) {
+      refreshFailed = false;
       snapshot = latestBody;
+      snapshotFetchedAt = Date.now();
       setWaiting(false);
       renderProbes();
       updateFreshMeta();
@@ -413,8 +428,12 @@
         const ctx = document.getElementById("context-text");
         ctx.innerHTML =
           "A cook connected their BBQlaw thermometer (<b>" + esc(latestBody.device) +
-          "</b>) so you can keep an eye on this cook. New readings stream in roughly every 10&nbsp;seconds — check the timestamps to see what's changed since you last looked. They'd like you to <b>track the cook and let them know when something happens</b>: a probe hits its target, stalls, or gets pulled.";
+          "</b>) so you can keep an eye on this cook. New readings stream in roughly every 20&nbsp;seconds — check the timestamps to see what's changed since you last looked. They'd like you to <b>track the cook and let them know when something happens</b>: a probe hits its target, stalls, or gets pulled.";
       }
+    } else {
+      refreshFailed = true;
+      setStream(false);
+      document.getElementById("fresh").textContent = "Cannot refresh · last update unavailable";
     }
 
     const { res: histRes, body: histBody } = await apiGet("/api/history", token);
@@ -433,8 +452,13 @@
       showEmpty();
       return;
     }
-    poll();
-    pollTimer = setInterval(poll, POLL_MS);
+    const check = () => poll().catch(() => {
+      refreshFailed = true;
+      setStream(false);
+      document.getElementById("fresh").textContent = "Cannot refresh · showing last phone update";
+    });
+    check();
+    pollTimer = setInterval(check, POLL_MS);
     tickTimer = setInterval(tickRelative, 1000);
   }
 
