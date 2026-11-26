@@ -82,7 +82,7 @@ export class ProbeStore {
     return () => this.listeners.delete(listener);
   };
 
-  /** Fired on each reading and connection change (the OpenClaw bridge uses it). */
+  /** Fired on each reading and connection change (the link bridge uses it). */
   onStateChange(listener: () => void): () => void {
     this.stateListeners.add(listener);
     return () => this.stateListeners.delete(listener);

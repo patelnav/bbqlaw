@@ -7,7 +7,7 @@
 > • If BBQlaw can't read your thermometer, you can record 60 seconds of its
 > Bluetooth data and send it to us. Nothing is sent unless you tap Send.
 >
-> After this update, add your probe again. If you use OpenClaw, link it again.
+> After this update, add your probe again. If you linked an agent, tap Link again.
 
 ## App Privacy label
 
@@ -29,7 +29,7 @@ no collected data. Keep your other answers as they are.
 1. **Add the probe again, once.** 1.0 saved cooks do not carry over. Probe names,
    targets, meat choices, mute and Watch only settings start fresh. The °F/°C
    choice returns to °F.
-2. **Link OpenClaw again, once.** The new app cannot read the link that 1.0 saved
+2. **Link your agent again, once.** The new app cannot read the link that 1.0 saved
    (tested in the Simulator). Give your agent the new feed link.
 3. **Cold relaunch shows a notification.** If iOS relaunches the app in the
    background for Bluetooth, BBQlaw cannot read the probe until you open it. It
@@ -55,7 +55,7 @@ app once and then install 2.0 over it.
       mutes it and turns it on again.
 - [ ] **Watch only:** turn it on. No app alert arrives, the base target clears and
       the buzzer is muted. Turn it off. Your target returns.
-- [ ] **Bridge:** link OpenClaw. The feed shows live readings with the screen
+- [ ] **Link:** tap Link & copy. The feed shows live readings with the screen
       locked, and the target event.
 - [ ] Dock the probe: the app shows **Docked**. Take it out: readings return.
 - [ ] Move out of range and come back: the app reconnects by itself.

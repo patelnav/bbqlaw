@@ -94,7 +94,7 @@ export function SettingsSheet({ probes, activeId, celsius, bridge, updateLabel, 
               <Text numberOfLines={1} ellipsizeMode="middle" style={{ ...font.mono(14), flex: 1, color: c.fg1 }}>{bridge.shareURL}</Text>
               <Icon name="copy" size={15} color={c.fg3} />
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Unlink OpenClaw" onPress={onUnlink} style={{ paddingLeft: 14, paddingVertical: 15 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Unlink" onPress={onUnlink} style={{ paddingLeft: 14, paddingVertical: 15 }}>
               <Icon name="trash" size={18} color={c.danger} />
             </Pressable>
           </View>
@@ -105,7 +105,7 @@ export function SettingsSheet({ probes, activeId, celsius, bridge, updateLabel, 
           </View>
         ) : (
           <View style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
-            <PrimaryButton title="Link to OpenClaw & copy" icon="link" fullWidth onPress={async () => {
+            <PrimaryButton title="Link & copy" icon="link" fullWidth onPress={async () => {
               const url = await onPair();
               if (url) await copy(url, 'Link copied to clipboard ✓');
             }} />
