@@ -14,7 +14,7 @@ import { shareCaptureFile, writeCaptureFile } from './engine/captureFile';
 import { SessionManager } from './engine/sessionManager';
 import { uploadCapture } from './engine/upload';
 import { expoNotifier } from './state/expoNotifier';
-import { updateLabel } from './state/otaUpdates';
+import { restartToUpdate, updateLabel, updateLibraryNow } from './state/otaUpdates';
 import type { KeyValueStorage } from './state/persistence';
 import { ProbeStore } from './state/store';
 
@@ -39,6 +39,8 @@ export function createServices(platforms: Platforms) {
     manager,
     bridge,
     updateLabel: updateLabel(),
+    updateLibraryNow,
+    restartToUpdate,
     createCapture: (deviceId: string, advertisement: CaptureAdvertisement) => {
       const session = new CaptureSession(
         ble,

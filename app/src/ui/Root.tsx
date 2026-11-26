@@ -1,4 +1,5 @@
 // The main screen. One modal holds every sheet, so switching sheets never races.
+import * as Updates from 'expo-updates';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
@@ -55,6 +56,7 @@ export function Root({ services, initialSheet = null }: { services: Services; in
   const c = useColors();
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const bridgeState = useSyncExternalStore(bridge.subscribe, bridge.getSnapshot);
+  const { isUpdatePending } = Updates.useUpdates();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(initialSheet);
 
@@ -117,7 +119,8 @@ export function Root({ services, initialSheet = null }: { services: Services; in
       case 'settings':
         return (
           <SettingsSheet probes={probes} activeId={active?.id} celsius={celsius} bridge={bridgeState}
-            updateLabel={services.updateLabel} onClose={close}
+            updateLabel={services.updateLabel} updatePending={isUpdatePending}
+            onUpdateLibrary={services.updateLibraryNow} onRestartToUpdate={services.restartToUpdate} onClose={close}
             onUnits={(value) => store.setUseCelsius(value)}
             onSelectProbe={(id) => {
               setSelectedId(id);

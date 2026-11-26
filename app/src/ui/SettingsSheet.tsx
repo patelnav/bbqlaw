@@ -2,18 +2,22 @@ import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import type { BridgeSnapshot } from '../bridge/client';
+import type { LibraryUpdateResult } from '../state/otaUpdates';
 import { shouldMuteBaseBuzzer, colorString, type Probe } from '../state/probe';
 import { formatTemp, tempUnit } from '../state/temperature';
 import { font, radius, useColors } from '../theme/tokens';
 import { Caps, Hairline, PrimaryButton, SegmentedControl, SheetPage, card } from './components';
 import { Icon } from './icons';
 
-export function SettingsSheet({ probes, activeId, celsius, bridge, updateLabel, onUnits, onSelectProbe, onAddDevice, onRemoveProbe, onBaseMuted, onPair, onUnlink, onClose }: {
+export function SettingsSheet({ probes, activeId, celsius, bridge, updateLabel, updatePending, onUpdateLibrary, onRestartToUpdate, onUnits, onSelectProbe, onAddDevice, onRemoveProbe, onBaseMuted, onPair, onUnlink, onClose }: {
   probes: Probe[];
   activeId: string | undefined;
   celsius: boolean;
   bridge: BridgeSnapshot;
   updateLabel: string;
+  updatePending: boolean;
+  onUpdateLibrary: (alreadyPending: boolean) => Promise<LibraryUpdateResult>;
+  onRestartToUpdate: () => void;
   onUnits: (celsius: boolean) => void;
   onSelectProbe: (id: string) => void;
   onAddDevice: () => void;
@@ -30,6 +34,15 @@ export function SettingsSheet({ probes, activeId, celsius, bridge, updateLabel, 
     const timer = setTimeout(() => setCopied(null), 2000);
     return () => clearTimeout(timer);
   }, [copied]);
+
+  const [checking, setChecking] = useState(false);
+  const [updateResult, setUpdateResult] = useState<LibraryUpdateResult | null>(null);
+  const updateReady = updatePending || updateResult === 'ready';
+  const updateLibrary = async () => {
+    setChecking(true);
+    setUpdateResult(await onUpdateLibrary(updatePending));
+    setChecking(false);
+  };
 
   const copy = async (url: string, message: string) => {
     await Clipboard.setStringAsync(url);
@@ -116,6 +129,20 @@ export function SettingsSheet({ probes, activeId, celsius, bridge, updateLabel, 
       {bridge.lastError ? note(bridge.lastError, c.danger) : null}
       <Text style={{ ...font.ui(13), color: c.fg3, paddingHorizontal: 6, paddingTop: 10 }}>
         Forward live readings so your agent can watch the cook and message someone when it's done. Your phone stays the Bluetooth bridge.
+      </Text>
+      <View style={[card(c, radius.md), { marginTop: 22 }]}>
+        <Pressable accessibilityRole="button" disabled={checking} onPress={updateReady ? onRestartToUpdate : updateLibrary} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 16, paddingVertical: 15 }}>
+          {checking ? <ActivityIndicator /> : <Icon name="search" size={18} color={c.ember} weight={3} />}
+          <Text style={{ ...font.ui(16, '600'), color: checking ? c.fg3 : c.ember }}>
+            {checking ? 'Checking…' : updateReady ? 'Restart to finish update' : 'Update library'}
+          </Text>
+        </Pressable>
+      </View>
+      {!updateReady && updateResult === 'up-to-date' ? note('Library is up to date', c.fg3) : null}
+      {updateResult === 'off' ? note('Updates are off in this build', c.fg3) : null}
+      {updateResult === 'failed' ? note('Could not check. Try again later.', c.danger) : null}
+      <Text style={{ ...font.ui(13), color: c.fg3, paddingHorizontal: 6, paddingTop: 10 }}>
+        New thermometers arrive in library updates.
       </Text>
       <Text style={{ ...font.mono(11), color: c.fg3, textAlign: 'center', paddingTop: 28 }}>{updateLabel}</Text>
     </SheetPage>
