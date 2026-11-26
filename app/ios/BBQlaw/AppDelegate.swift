@@ -20,7 +20,26 @@ class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
     reactNativeDelegate = delegate
     reactNativeFactory = factory
 
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(adoptSavedScene(_:)), name: UIScene.willConnectNotification, object: nil)
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // A scene saved by the SwiftUI 1.0 app.
+  @objc private func adoptSavedScene(_ notification: Notification) {
+    guard let scene = notification.object as? UIWindowScene,
+      let delegateClass = scene.session.configuration.delegateClass,
+      !delegateClass.isSubclass(of: ExpoAppSceneDelegate.self),
+      let factory = reactNativeFactory else {
+      return
+    }
+    let sceneDelegate = ExpoAppSceneDelegate()
+    scene.delegate = sceneDelegate
+    let sceneWindow = UIWindow(windowScene: scene)
+    sceneDelegate.window = sceneWindow
+    window = sceneWindow
+    factory.startReactNative(withModuleName: "main", in: sceneWindow, launchOptions: nil)
   }
 
   // Linking API
