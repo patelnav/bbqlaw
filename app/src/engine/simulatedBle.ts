@@ -38,6 +38,48 @@ export function simulatedInkbird(id: string, name = 'INT-11I-B', rssi = -54): Si
   };
 }
 
+/** An iBBQ-layout thermometer. It sends data only when the test or demo calls `notify`. */
+export function simulatedIbbq(id: string, name = 'iBBQ', rssi = -58): SimulatedDevice {
+  return {
+    advertisement: { id, name, rssi, services: ['FFF0'], manufacturerData: null, serviceData: {} },
+    services: [
+      {
+        service: 'FFF0',
+        chars: [
+          ...chars(['FFF1'], ['notify']),
+          ...chars(['FFF2'], ['write']),
+          ...chars(['FFF3'], ['notify']),
+          ...chars(['FFF4'], ['notify']),
+          ...chars(['FFF5'], ['write']),
+        ],
+      },
+    ],
+    onWrite() {},
+  };
+}
+
+const THERMOPRO = (n: number) => `1086FFF${n}-3343-4817-8BB2-B32206336CE8`;
+/** A captured TP25 report (kwood1992/thermopro-tp25-ble): probe 1 = 30.0 °C. */
+const THERMOPRO_REPORT = '300f5c0c000300ffffffffffffffffffffa00140';
+
+/** A TP25: accepts the start frame, then answers each temperature request. */
+export function simulatedThermoPro(id: string, name = 'Thermopro', rssi = -63): SimulatedDevice {
+  return {
+    advertisement: { id, name, rssi, services: [THERMOPRO(0)], manufacturerData: null, serviceData: {} },
+    services: [
+      {
+        service: THERMOPRO(0),
+        chars: [...chars([THERMOPRO(1)], ['read', 'write']), ...chars([THERMOPRO(2)], ['notify'])],
+      },
+    ],
+    onWrite(char, hex, notify) {
+      if (char !== THERMOPRO(1)) return;
+      if (hex.startsWith('0109')) notify(THERMOPRO(2), '01010a0c');
+      else if (hex === '300030') notify(THERMOPRO(2), THERMOPRO_REPORT);
+    },
+  };
+}
+
 export function simulatedUnknown(id: string, name = 'TM-WLP100', rssi = -61): SimulatedDevice {
   return {
     advertisement: {

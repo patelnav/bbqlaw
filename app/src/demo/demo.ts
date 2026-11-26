@@ -2,7 +2,8 @@
 // INT-11I-B bytes; the session manager, host.ts and adapter are the real ones.
 //   xcrun simctl launch booted app.bbqlaw.ios -bbqDemo monitoring
 import { LogBox } from 'react-native';
-import { createSimulatedBle, simulatedInkbird, simulatedUnknown } from '../engine/simulatedBle';
+import { createSimulatedBle, simulatedIbbq, simulatedInkbird, simulatedUnknown } from '../engine/simulatedBle';
+import { PENDING_KEY } from '../state/pending';
 import { createServices, type Services } from '../services';
 import { memoryStorage } from '../state/testSupport';
 import type { DiscoveredDevice } from '../state/store';
@@ -11,6 +12,9 @@ import type { Sheet } from '../ui/Root';
 const A = 'D0000000-0000-4000-8000-0000000000A1';
 const B = 'D0000000-0000-4000-8000-0000000000B2';
 const UNKNOWN = 'D0000000-0000-4000-8000-0000000000C3';
+const IBBQ = 'D0000000-0000-4000-8000-0000000000D4';
+/** An INT-11I-B layout under a name that no adapter matches. */
+const CLONE = 'D0000000-0000-4000-8000-0000000000E5';
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -22,14 +26,23 @@ function temperatureFrame(f: number): string {
 
 export function createDemo(scene: string): { services: Services; run(): Promise<Sheet | null> } {
   LogBox.ignoreAllLogs(); // no warning toast in screenshots
-  const ble = createSimulatedBle([simulatedInkbird(A), simulatedUnknown(UNKNOWN), simulatedInkbird(B, 'INT-11I-B', -67)]);
+  const ble = createSimulatedBle([
+    simulatedInkbird(A),
+    simulatedUnknown(UNKNOWN),
+    simulatedInkbird(B, 'INT-11I-B', -67),
+    ...(scene.startsWith('identify') ? [simulatedIbbq(IBBQ), simulatedInkbird(CLONE, 'BT-PROBE', -70)] : []),
+  ]);
   let linked =
     scene === 'settings-linked'
       ? { deviceId: 'demo', deviceToken: 'demo', ingestURL: 'https://invalid.invalid/', readerToken: 'hickory-ember-oak-482' }
       : null;
   const services = createServices({
     ble: ble.transport,
-    storage: memoryStorage().storage,
+    storage: memoryStorage(
+      scene === 'scanner-pending'
+        ? { [PENDING_KEY]: JSON.stringify([{ deviceId: UNKNOWN, fingerprint: 'demo', updateId: 'an-earlier-update' }]) }
+        : {},
+    ).storage,
     credentials: {
       load: async () => linked,
       save: async () => true,
@@ -59,6 +72,20 @@ export function createDemo(scene: string): { services: Services; run(): Promise<
     return session;
   };
 
+  const createIdentify = services.createIdentify;
+  services.createIdentify = (device) => {
+    const session = createIdentify(device);
+    if (scene !== 'identify-intro') {
+      setTimeout(() => {
+        session.start();
+        if (scene === 'identify-confirm') setInterval(() => ble.notify(IBBQ, 'FFF4', 'dc00f6ff'), 700); // 22.0 °C
+        if (scene === 'identify-docked') setTimeout(() => ble.notify(CLONE, 'FF01', 'fe7f00'), 1500);
+        if (scene === 'identify-nomatch') setTimeout(() => ble.notify(IBBQ, 'FFF4', 'ff7f'), 1500);
+      }, 800);
+    }
+    return session;
+  };
+
   async function discover(): Promise<DiscoveredDevice[]> {
     services.manager.startScan();
     await pause(200);
@@ -82,7 +109,13 @@ export function createDemo(scene: string): { services: Services; run(): Promise<
   async function run(): Promise<Sheet | null> {
     const { store } = services;
     if (scene === 'onboarding') return null;
-    if (scene === 'scanner') return { kind: 'scanner' };
+    if (scene === 'scanner' || scene === 'scanner-pending') return { kind: 'scanner' };
+    if (scene.startsWith('identify')) {
+      const id = scene === 'identify-docked' ? CLONE : IBBQ;
+      const device = (await discover()).find((d) => d.id === id)!;
+      services.manager.stopScan();
+      return { kind: 'identify', device };
+    }
     if (scene === 'unsupported' || scene.startsWith('capture')) {
       const device = (await discover()).find((d) => d.id === UNKNOWN)!;
       services.manager.stopScan();

@@ -3,7 +3,8 @@ import { ADAPTERS } from '../adapters';
 import { ProbeStore } from '../state/store';
 import { memoryStorage, recordingNotifier } from '../state/testSupport';
 import { createBackgroundWork } from './backgroundWork';
-import { SessionManager, resolveGatt } from './sessionManager';
+import { resolveGatt } from './adapterSession';
+import { SessionManager } from './sessionManager';
 import { createSimulatedBle, simulatedInkbird, simulatedUnknown, type SimulatedDevice } from './simulatedBle';
 
 const A = 'AAAAAAAA-0000-0000-0000-000000000001';

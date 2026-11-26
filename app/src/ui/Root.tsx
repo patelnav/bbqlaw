@@ -6,11 +6,13 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import type { Services } from '../services';
 import type { CaptureAdvertisement } from '../engine/capture';
+import type { IdentifyAttempt } from '../engine/identify';
 import { hasTarget, isReached } from '../state/probe';
 import type { DiscoveredDevice } from '../state/store';
 import { useColors } from '../theme/tokens';
 import { AddDeviceScreen } from './AddDeviceScreen';
 import { CaptureSheet } from './CaptureSheet';
+import { IdentifySheet } from './IdentifySheet';
 import { Logo } from './Logo';
 import { MeatSheet } from './MeatSheet';
 import { ScannerSheet } from './ScannerSheet';
@@ -23,7 +25,8 @@ export type Sheet =
   | { kind: 'scanner' }
   | { kind: 'meat'; probeId: string }
   | { kind: 'settings' }
-  | { kind: 'capture'; device: DiscoveredDevice; unreadable: boolean };
+  | { kind: 'identify'; device: DiscoveredDevice }
+  | { kind: 'capture'; device: DiscoveredDevice; unreadable: boolean; attempts?: IdentifyAttempt[] };
 
 const advertisementOf = (d: DiscoveredDevice): CaptureAdvertisement => ({
   name: d.advertisedName,
@@ -74,9 +77,15 @@ export function Root({ services, initialSheet = null }: { services: Services; in
   }, [unsupportedDevice, manager]);
 
   const captureDevice = sheet?.kind === 'capture' ? sheet.device : null;
+  const captureAttempts = sheet?.kind === 'capture' ? sheet.attempts : undefined;
   const capture = useMemo(
-    () => (captureDevice ? services.createCapture(captureDevice.id, advertisementOf(captureDevice)) : null),
-    [captureDevice, services],
+    () => (captureDevice ? services.createCapture(captureDevice.id, advertisementOf(captureDevice), captureAttempts) : null),
+    [captureDevice, captureAttempts, services],
+  );
+  const identifyDevice = sheet?.kind === 'identify' ? sheet.device : null;
+  const identify = useMemo(
+    () => (identifyDevice ? services.createIdentify(identifyDevice) : null),
+    [identifyDevice, services],
   );
 
   const close = () => {
@@ -101,11 +110,28 @@ export function Root({ services, initialSheet = null }: { services: Services; in
               manager.connect(device);
               setSheet(null);
             }}
-            onCapture={(device) => {
+            hasNewSupport={services.pending.hasNewSupport}
+            onIdentify={(device) => {
               manager.stopScan();
-              setSheet({ kind: 'capture', device, unreadable: false });
+              setSheet({ kind: 'identify', device });
             }} />
         );
+      case 'identify':
+        return identify ? (
+          <IdentifySheet key={sheet.device.id} session={identify} deviceName={sheet.device.name} celsius={celsius} onClose={close}
+            onMatched={(adapter) => {
+              void services.pending.remove(sheet.device.id);
+              manager.connect({ ...sheet.device, adapter });
+              setSheet(null);
+            }}
+            onCapture={() => {
+              const { device } = sheet;
+              // The capture starts only after identify has released the device.
+              void identify.cancel().then(() =>
+                setSheet({ kind: 'capture', device, unreadable: false, attempts: [...identify.attempts] }),
+              );
+            }} />
+        ) : null;
       case 'meat':
         return (
           <MeatSheet probe={store.probe(sheet.probeId)} celsius={celsius} onClose={close}

@@ -37,7 +37,7 @@ export interface CaptureDocument {
   advertisement: CaptureAdvertisement;
   services: { uuid: string; characteristics: CaptureCharacteristic[] }[];
   events: { t: number; service: string; char: string; hex: string }[];
-  identifyAttempts: unknown[]; // filled by the identify pipeline (OTA phase)
+  identifyAttempts: unknown[]; // trials from identify, when it ran first
 }
 
 export interface CaptureSnapshot {
@@ -82,6 +82,7 @@ export class CaptureSession {
     private info: CaptureInfo,
     private sha256: Sha256,
     private clock: Clock = systemClock,
+    private identifyAttempts: readonly unknown[] = [],
   ) {}
 
   getSnapshot = (): CaptureSnapshot => this.snapshot;
@@ -141,7 +142,7 @@ export class CaptureSession {
       advertisement: this.advertisement,
       services: this.services,
       events: this.events,
-      identifyAttempts: [],
+      identifyAttempts: [...this.identifyAttempts],
     };
     const fileName = captureFileName(this.advertisement.name, new Date(this.clock.now()));
     this.set({ phase: 'done', result: { document, fileName } });

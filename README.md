@@ -30,8 +30,13 @@ checks `updates.bbqlaw.app` for app updates.
   receive the command; firmware safety alarms may remain independent.
 - Optional **OpenClaw bridge** — forward the cook to your own AI agent. Your phone
   stays the Bluetooth bridge; the reading never touches anyone else's account.
-- Unsupported thermometer? Record 60 seconds of its Bluetooth data and, if you
-  choose, send it to us. The app only listens while it records.
+- Unknown thermometer? **Identify** (ships over the air, after 2.0.0) tries the
+  protocols the app knows, shows a reading, and asks you to confirm it. It writes
+  nothing before you tap **Try protocols**. The iBBQ and ThermoPro TP25 protocols
+  come from public projects (cited in their files) and are not yet verified on
+  hardware.
+- Still unsupported? Record 60 seconds of its Bluetooth data and, if you choose,
+  send it to us. The app only listens while it records.
 
 We reverse-engineered the BLE protocol ourselves (auth handshake, temperature
 decode, and the device-control commands), so the stock app isn't needed at all.
@@ -73,7 +78,10 @@ with a simulated probe (scenes are in `app/src/demo/demo.ts`).
 
 1. Add the adapter: `app/src/adapters/<id>.ts`. It says which devices it matches,
    which characteristics it uses, and how to decode them. It can only talk to the
-   probe through the host in `app/src/engine/host.ts`.
+   probe through the host in `app/src/engine/host.ts`. For identify, it also sets
+   `signature` and `trialSafe`. Leave `match` empty if only identify should assign
+   it. If a real capture confirms a layout, add its fingerprint hash to
+   `app/src/adapters/fingerprints.ts`.
 2. Add golden vectors: `app/src/adapters/vectors/<id>.json` (input bytes and the
    expected writes and readings). Take the bytes from a real capture or a cited
    public source. Never guess them.
@@ -99,9 +107,7 @@ Setup and deploy: [`relay/README.md`](relay/README.md).
 
 ## Roadmap
 
-- **Identify an unknown thermometer** (ships over the air, after 2.0.0): the app
-  tries the protocols it knows, shows a reading, and asks you to confirm it. More
-  protocol families come the same way. See
+- More protocol families, over the air. See
   [`docs/specs/bbqlaw-2-expo.md`](docs/specs/bbqlaw-2-expo.md) §6.
 - Cook history + graph.
 

@@ -4,11 +4,11 @@ import { LEGACY_ADAPTER_ID, type DiscoveredDevice, type ProbeStore } from '../st
 import { alarmTargetF, shouldMuteBaseBuzzer, type AuthState } from '../state/probe';
 import { restoreHint } from '../state/restoreHint';
 import type { HoldBackgroundWork } from './backgroundWork';
-import type { BleState, BleTransport, CharProp, Discovery, DiscoveredService } from './ble';
-import { createRuntime, systemClock, type AdapterRuntime, type Clock, type HostEvent } from './host';
+import { resolveChars, routeValue, startAdapterSession, type ResolvedChar } from './adapterSession';
+import type { BleState, BleTransport, Discovery, DiscoveredService } from './ble';
+import { systemClock, type AdapterRuntime, type Clock, type HostEvent } from './host';
 import { matchAdapter } from './match';
 import type { AdapterDef, AdapterStatus } from './types';
-import { canonicalUUID, parseGattRef } from './uuid';
 
 const TARGET_DEBOUNCE_MS = 500;
 
@@ -18,30 +18,6 @@ const AUTH_STATE: Record<AdapterStatus, AuthState> = {
   ready: 'authed',
   failed: 'failed',
 };
-
-export interface ResolvedChar {
-  service: string;
-  char: string;
-  props: CharProp[];
-}
-
-/** Resolves one `gatt` entry to a (service, char) on this peripheral. */
-export function resolveGatt(adapter: AdapterDef, services: DiscoveredService[], entry: string): ResolvedChar | null {
-  const ref = parseGattRef(entry);
-  if (!ref) return null;
-  const wanted = new Set(
-    [...adapter.gatt.notify, ...adapter.gatt.read, ...adapter.gatt.write].map((e) => parseGattRef(e)?.char),
-  );
-  // When two services share a UUID, prefer the one with more of the adapter's characteristics.
-  const score = (s: DiscoveredService) => s.chars.filter((c) => wanted.has(canonicalUUID(c.uuid) ?? '')).length;
-  let best: { service: DiscoveredService; props: CharProp[] } | null = null;
-  for (const service of services) {
-    if (ref.service !== null && canonicalUUID(service.service) !== ref.service) continue;
-    const found = service.chars.find((c) => canonicalUUID(c.uuid) === ref.char);
-    if (found && (!best || score(service) > score(best.service))) best = { service, props: found.props };
-  }
-  return best ? { service: best.service.service, char: ref.char, props: best.props } : null;
-}
 
 interface Session {
   deviceId: string;
@@ -211,10 +187,10 @@ export class SessionManager {
   private handleDiscovered(found: Discovery) {
     // Hide probes we're already connected to.
     if (this.store.probes.some((p) => p.deviceId === found.id && p.connection === 'connected')) return;
+    // A remembered mapping (confirmed in identify) wins over the advertisement.
     const matched =
-      matchAdapter(this.adapters, found) ??
       this.adapters.find((a) => a.id === this.store.record(found.id)?.adapterId) ??
-      null;
+      matchAdapter(this.adapters, found);
     const device: DiscoveredDevice = {
       id: found.id,
       name: found.name ?? 'Unknown',
@@ -268,11 +244,7 @@ export class SessionManager {
   private handleValue(id: string, service: string, char: string, bytes: number[]) {
     if (this.claimed.has(id)) return;
     const session = this.sessions.get(id);
-    const uuid = canonicalUUID(char);
-    if (!session?.runtime || uuid === null) return;
-    const resolved = session.chars.get(uuid);
-    if (resolved && resolved.service !== service) return; // same UUID in another service
-    session.runtime.notify(uuid, bytes);
+    if (session?.runtime) routeValue(session.runtime, session.chars, service, char, bytes);
   }
 
   // Session
@@ -295,7 +267,7 @@ export class SessionManager {
     session.generation += 1;
     session.runtime?.invalidate();
     session.runtime = null;
-    session.chars.clear();
+    session.chars = new Map();
     session.channelBattery.clear();
     session.linked = false;
     session.releaseAuthWork?.();
@@ -325,58 +297,28 @@ export class SessionManager {
     }
     if (!current()) return;
 
-    const { gatt } = session.adapter;
-    for (const entry of [...gatt.notify, ...gatt.read, ...gatt.write]) {
-      const resolved = resolveGatt(session.adapter, services, entry);
-      if (resolved) session.chars.set(resolved.char, resolved);
-    }
+    session.chars = resolveChars(session.adapter, services);
     if (session.chars.size === 0) {
       this.mismatch(session);
       return;
     }
 
-    session.runtime = createRuntime(
-      session.adapter,
-      (event) => {
-        if (current()) this.handleHostEvent(session, event);
+    await startAdapterSession({
+      ble: this.ble,
+      deviceId: id,
+      adapter: session.adapter,
+      services,
+      chars: session.chars,
+      clock: this.clock,
+      current,
+      onEvent: (event) => this.handleHostEvent(session, event),
+      onRuntime: (runtime) => {
+        session.runtime = runtime;
+        this.store.mutateDevice(id, () => ({ authState: 'subscribing' }));
       },
-      this.clock,
-    );
-    this.store.mutateDevice(id, () => ({ authState: 'subscribing' }));
-
-    // Subscribe every notify characteristic BEFORE onReady: some devices only
-    // start their handshake once all of them are subscribed.
-    const subscriptions = new Map<string, ResolvedChar>();
-    for (const entry of gatt.notify) {
-      const resolved = resolveGatt(session.adapter, services, entry);
-      if (resolved && (resolved.props.includes('notify') || resolved.props.includes('indicate'))) {
-        subscriptions.set(`${resolved.service}/${resolved.char}`, resolved);
-      } else {
-        this.log(`no notify characteristic ${entry}; skipped`);
-      }
-    }
-    await Promise.all(
-      [...subscriptions.values()].map((c) =>
-        this.ble.setNotify(id, c.service, c.char, true).catch((error) => {
-          this.log(`subscribe ${c.char}: ${errorText(error)}`);
-          if (current()) this.store.set({ lastError: errorText(error) });
-        }),
-      ),
-    );
-    if (!current()) return;
-    session.runtime?.ready();
-
-    for (const entry of gatt.read) {
-      const resolved = resolveGatt(session.adapter, services, entry);
-      if (!resolved || !resolved.props.includes('read')) continue;
-      try {
-        const bytes = await this.ble.read(id, resolved.service, resolved.char);
-        if (!current()) return;
-        session.runtime?.notify(resolved.char, bytes);
-      } catch (error) {
-        this.log(`read ${resolved.char}: ${errorText(error)}`);
-      }
-    }
+      onSubscribeError: (message) => this.store.set({ lastError: message }),
+      log: this.log,
+    });
   }
 
   /** A matched device whose GATT does not fit its adapter (spec §5). */
@@ -417,17 +359,6 @@ export class SessionManager {
   private handleHostEvent(session: Session, event: HostEvent) {
     const id = session.deviceId;
     switch (event.type) {
-      case 'write': {
-        const target = session.chars.get(event.char);
-        if (!target) {
-          this.log(`write: no characteristic ${event.char}`);
-          return;
-        }
-        this.ble
-          .write(id, target.service, target.char, event.bytes, event.withResponse)
-          .catch((e) => this.log(`write ${event.char}: ${errorText(e)}`));
-        return;
-      }
       case 'reading': {
         const channel = event.reading.channel;
         const isNewCard = this.store.applyReading(

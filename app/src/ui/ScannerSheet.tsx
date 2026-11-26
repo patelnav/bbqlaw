@@ -4,11 +4,13 @@ import type { DiscoveredDevice } from '../state/store';
 import { font, radius, useColors } from '../theme/tokens';
 import { Caps, SheetPage } from './components';
 
-export function ScannerSheet({ discovered, onScan, onConnect, onCapture, onClose }: {
+export function ScannerSheet({ discovered, hasNewSupport, onScan, onConnect, onIdentify, onClose }: {
   discovered: DiscoveredDevice[];
+  /** True when this device failed on an earlier update. */
+  hasNewSupport: (deviceId: string) => boolean;
   onScan: () => void;
   onConnect: (device: DiscoveredDevice) => void;
-  onCapture: (device: DiscoveredDevice) => void;
+  onIdentify: (device: DiscoveredDevice) => void;
   onClose: () => void;
 }) {
   const c = useColors();
@@ -16,12 +18,17 @@ export function ScannerSheet({ discovered, onScan, onConnect, onCapture, onClose
   const supported = discovered.filter((d) => d.adapter !== null);
   const others = discovered.filter((d) => d.adapter === null && d.advertisedName !== null && d.advertisedName !== '');
 
-  const row = (device: DiscoveredDevice, onPress: () => void) => (
+  const row = (device: DiscoveredDevice, onPress: () => void, badge?: string) => (
     <Pressable key={device.id} accessibilityRole="button" onPress={onPress}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: c.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: c.line }}>
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={{ ...font.ui(16, '700'), color: c.fg1 }}>{device.name}</Text>
         {device.adapter ? <Text style={{ ...font.ui(12, '600'), color: c.ember }}>{device.adapter.name}</Text> : null}
+        {badge ? (
+          <View style={{ alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 100, backgroundColor: c.emberTint }}>
+            <Text style={{ ...font.ui(12, '700'), color: c.ember }}>{badge}</Text>
+          </View>
+        ) : null}
       </View>
       <Text style={{ ...font.mono(13), color: c.fg3 }}>{device.rssi} dBm</Text>
     </Pressable>
@@ -33,7 +40,7 @@ export function ScannerSheet({ discovered, onScan, onConnect, onCapture, onClose
         {supported.length > 0 ? <Caps style={{ paddingHorizontal: 4 }}>Supported</Caps> : null}
         {supported.map((d) => row(d, () => onConnect(d)))}
         {others.length > 0 ? <Caps style={{ paddingHorizontal: 4, paddingTop: 12 }}>Other Bluetooth devices</Caps> : null}
-        {others.map((d) => row(d, () => onCapture(d)))}
+        {others.map((d) => row(d, () => onIdentify(d), hasNewSupport(d.id) ? 'New support — tap to retry' : undefined))}
         <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 9, paddingVertical: 10 }}>
           <ActivityIndicator />
           <Text style={{ ...font.ui(13, '500'), color: c.fg3 }}>Searching…</Text>
