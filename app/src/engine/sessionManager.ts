@@ -169,7 +169,8 @@ export class SessionManager {
   // Events
 
   private handleState(state: BleState) {
-    if (state === 'unknown') return;
+    // The same state can arrive twice (queued event, then `state()`).
+    if (state === 'unknown' || state === this.bleState) return;
     this.bleState = state;
     if (state === 'poweredOn') {
       this.store.set({ bluetoothOff: false });

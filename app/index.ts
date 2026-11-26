@@ -1,4 +1,4 @@
 import { registerRootComponent } from 'expo';
-import { DebugScreen } from './src/ui/DebugScreen';
+import { App } from './src/App';
 
-registerRootComponent(DebugScreen);
+registerRootComponent(App);
