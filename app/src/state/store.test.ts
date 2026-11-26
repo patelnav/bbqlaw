@@ -1,4 +1,4 @@
-// The first four tests are the cases of BBQlawTests/WatchOnlyTests.swift.
+// The first four tests are the watch-only cases from the 1.0 app.
 import { adapter as inkbird } from '../adapters/inkbird-int-11i-b';
 import { COOKS_KEY } from './persistence';
 import { alarmTargetF, hasTarget, isReached, shouldMuteBaseBuzzer } from './probe';

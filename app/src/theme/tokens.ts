@@ -1,4 +1,4 @@
-// BBQlaw design tokens (DESIGN.md / DesignSystem.swift). Flat surfaces, hairline
+// BBQlaw design tokens (DESIGN.md). Flat surfaces, hairline
 // borders, no drop shadows. The only warm note is the ember accent and temp ramp.
 import { useColorScheme, type TextStyle } from 'react-native';
 

@@ -1,4 +1,4 @@
-// The kettle-damper mark (the rotated "Q") and the BB◉law wordmark (Logo.swift).
+// The kettle-damper mark (the rotated "Q") and the BB◉law wordmark.
 import { Text, View } from 'react-native';
 import Svg, { Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
 import { font, useColors } from '../theme/tokens';

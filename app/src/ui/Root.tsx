@@ -1,4 +1,4 @@
-// ContentView.swift. One modal holds every sheet, so switching sheets never races.
+// The main screen. One modal holds every sheet, so switching sheets never races.
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Modal, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';

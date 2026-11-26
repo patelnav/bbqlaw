@@ -1,4 +1,4 @@
-// BBQStatusPillModel.
+// What the status pill says.
 import type { Probe } from '../state/probe';
 
 export interface PillStatus {

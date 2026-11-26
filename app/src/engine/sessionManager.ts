@@ -1,5 +1,5 @@
 // Bluetooth sessions: scan, connect, discovery barrier, adapter runtime,
-// reconnect, restoration, device alarm. Port of ThermometerManager.swift.
+// reconnect, restoration, device alarm.
 import { LEGACY_ADAPTER_ID, type DiscoveredDevice, type ProbeStore } from '../state/store';
 import { alarmTargetF, shouldMuteBaseBuzzer, type AuthState } from '../state/probe';
 import { restoreHint } from '../state/restoreHint';

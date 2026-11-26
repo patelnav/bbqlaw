@@ -1,4 +1,4 @@
-// The stored format matches BridgeKeychain.swift.
+// The stored format matches the 1.0 app's.
 export interface Credentials {
   deviceId: string;
   deviceToken: string;

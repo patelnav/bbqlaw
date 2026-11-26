@@ -1,4 +1,4 @@
-// Primitives from AppComponents.swift. Flat surfaces, hairline borders.
+// UI primitives. Flat surfaces, hairline borders.
 import { useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator, PanResponder, Pressable, ScrollView, Text, View, type StyleProp, type ViewStyle,

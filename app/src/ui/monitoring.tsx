@@ -1,5 +1,5 @@
 // The monitoring screen: status pill, hero temperature, sparkline, probe rail,
-// battery tiles and the target card (AppComponents.swift).
+// battery tiles and the target card.
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';

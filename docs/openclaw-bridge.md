@@ -91,10 +91,11 @@ bridge dropped, not that the cook finished.
 
 ### 2. iOS app (BBQlaw)
 
-- **`BridgeClient.swift`** — when connected *and* linked, POST a reading every
-  ~20s, and immediately on target-reached. Device token read from Keychain.
+- **`app/src/bridge/client.ts`** — when connected *and* linked, POST a reading every
+  ~20s, and immediately on target-reached. Device token read from Keychain
+  (`expo-secure-store`).
   No-ops when unlinked, so unlinked installs behave exactly like today.
-- **In-app pair** — "Link" in `ContentView` calls `POST /api/pair`, saves device
+- **In-app pair** — "Link" in Settings (`app/src/ui/SettingsSheet.tsx`) calls `POST /api/pair`, saves device
   credentials to Keychain, shows the reader token to copy for OpenClaw.
 - **UI** — "Link to your OpenClaw 🔥" row: Link / Unlink, device id, reader token
   (copy), poll URL, instructions.

@@ -1,5 +1,4 @@
-// OpenClaw bridge: pairing and BLE-driven pushes. Port of BridgeClient.swift and
-// BridgeLinkManager.swift. The relay API is unchanged.
+// OpenClaw bridge: pairing and BLE-driven pushes. The relay API is the 1.0 API.
 import type { HoldBackgroundWork } from '../engine/backgroundWork';
 import type { Fetch } from '../engine/upload';
 import { alarmTargetF, colorString, isReached, meatForKey, type Probe } from '../state/probe';

@@ -1,4 +1,4 @@
-// Port of CookModel.swift and the state enums from Models.swift.
+// Cook presets, probe state and the values derived from it.
 import type { Capability } from '../engine/types';
 
 export interface Doneness {

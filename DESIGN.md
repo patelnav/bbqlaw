@@ -260,7 +260,7 @@ Tight, precise radii (not pillowy): `sm` 9px (chips), `md` 13px (buttons/inputs)
 - **status-pill:** floating capsule at the top; ember tint + ember text when live,
   slate tint + slate text when idle/connecting (with a slow pulsing dot).
 - Hero tick-gauge, live sparkline, gradient target slider (cold→ember), probe rail,
-  and the meat picker compose the tokens above. See `BBQlaw/AppComponents.swift`.
+  and the meat picker compose the tokens above. See `app/src/ui/`.
 
 ## Do's and Don'ts
 
@@ -276,6 +276,6 @@ Tight, precise radii (not pillowy): `sm` 9px (chips), `md` 13px (buttons/inputs)
   Source of truth for design tokens (Google Stitch DESIGN.md format).
   Validate:  npx @google/design.md lint DESIGN.md
   Export:    npx @google/design.md export --format css-tailwind DESIGN.md   (or dtcg / json-tailwind)
-  Implemented in: BBQlaw/DesignSystem.swift (iOS) · web/colors_and_type.css (web).
-  Not a Tailwind project — consume via the Swift BBQ.* tokens / CSS vars.
+  Implemented in: app/src/theme/tokens.ts (iOS app) · web/colors_and_type.css (web).
+  Not a Tailwind project — consume via the theme tokens / CSS vars.
 -->
