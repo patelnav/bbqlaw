@@ -11,6 +11,11 @@ binding = "RELAY"
 id = "eabf6ea0dd554e118e4f3a733be5c51a"
 preview_id = "eabf6ea0dd554e118e4f3a733be5c51a"
 
+# Opt-in thermometer captures. A 90-day lifecycle rule deletes them (README.md).
+[[r2_buckets]]
+binding = "CAPTURES"
+bucket_name = "bbqlaw-captures"
+
 [vars]
 PUBLIC_BASE_URL = "https://bbqlaw.app"
 

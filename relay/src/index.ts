@@ -1,5 +1,7 @@
 export interface Env {
   RELAY: KVNamespace;
+  CAPTURES: R2Bucket;
+  CAPTURES_ADMIN_TOKEN?: string; // secret: `wrangler secret put CAPTURES_ADMIN_TOKEN`
   PUBLIC_BASE_URL: string;
 }
 
@@ -46,6 +48,12 @@ const PAIR_RATE_WINDOW_SECONDS = 60;
 const READER_FAIL_LIMIT = 30;
 const READER_FAIL_WINDOW_SECONDS = 60;
 const HISTORY_CAP = 60;
+const CAPTURE_MAX_BYTES = 512 * 1024;
+const CAPTURE_RATE_LIMIT = 10;
+const CAPTURE_RATE_WINDOW_SECONDS = 60 * 60;
+const CAPTURE_LIST_LIMIT = 100;
+const CAPTURE_PREFIX = "captures/";
+const CAPTURES_PATH = "/api/captures";
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -54,11 +62,22 @@ const CORS_HEADERS: Record<string, string> = {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    // Captures are for the native app and the operator. No browser origin gets
+    // CORS access to them, so these routes stay ahead of the wildcard preflight.
+    if (url.pathname === CAPTURES_PATH || url.pathname.startsWith(`${CAPTURES_PATH}/`)) {
+      try {
+        return await handleCaptures(request, env, url);
+      } catch {
+        return privateJson({ error: "internal error" }, 500);
+      }
+    }
+
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    const url = new URL(request.url);
     if (!url.pathname.startsWith("/api/")) {
       return json({ error: "not found" }, 404);
     }
@@ -89,7 +108,7 @@ async function handlePair(
   url: URL,
 ): Promise<Response> {
   const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  if (!(await checkPairRateLimit(env, ip))) {
+  if (!(await checkRateLimit(env, "pairlimit", ip, PAIR_RATE_LIMIT, PAIR_RATE_WINDOW_SECONDS))) {
     return json({ error: "rate limit exceeded" }, 429);
   }
 
@@ -201,6 +220,135 @@ async function handleHistory(request: Request, env: Env): Promise<Response> {
   const events = raw ? (JSON.parse(raw) as HistoryEvent[]) : [];
   // Most-recent first for the feed.
   return json({ events: [...events].reverse() });
+}
+
+// MARK: - Captures (opt-in uploads from the app)
+
+async function handleCaptures(request: Request, env: Env, url: URL): Promise<Response> {
+  if (url.pathname === CAPTURES_PATH) {
+    if (request.method === "POST") return handleCaptureUpload(request, env);
+    if (request.method === "GET") {
+      if (!(await isAdmin(request, env))) return privateJson({ error: "unauthorized" }, 401);
+      return handleCaptureList(env);
+    }
+  } else if (request.method === "GET") {
+    if (!(await isAdmin(request, env))) return privateJson({ error: "unauthorized" }, 401);
+    return handleCaptureGet(env, url.pathname.slice(CAPTURES_PATH.length + 1));
+  }
+  return privateJson({ error: "not found" }, 404);
+}
+
+async function handleCaptureUpload(request: Request, env: Env): Promise<Response> {
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  if (!(await checkRateLimit(env, "capturelimit", ip, CAPTURE_RATE_LIMIT, CAPTURE_RATE_WINDOW_SECONDS))) {
+    return privateJson({ error: "rate limit exceeded" }, 429);
+  }
+
+  const bytes = await readCapped(request, CAPTURE_MAX_BYTES);
+  if (bytes === null) return privateJson({ error: "capture too large" }, 413);
+
+  let body: unknown;
+  try {
+    body = JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes));
+  } catch {
+    return privateJson({ error: "invalid json body" }, 400);
+  }
+  if (typeof body !== "object" || body === null || (body as { bbqlawCapture?: unknown }).bbqlawCapture !== 2) {
+    return privateJson({ error: "not a BBQlaw capture" }, 400);
+  }
+
+  const code = await uniqueCaptureCode(env);
+  await env.CAPTURES.put(`${CAPTURE_PREFIX}${code}.json`, bytes, {
+    httpMetadata: { contentType: "application/json" },
+    customMetadata: { receivedAt: new Date().toISOString() },
+  });
+  return privateJson({ code });
+}
+
+/** Reads the body as a stream and stops at the limit. Returns null when it is too large. */
+async function readCapped(request: Request, limit: number): Promise<Uint8Array | null> {
+  if (!request.body) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+async function uniqueCaptureCode(env: Env): Promise<string> {
+  for (let i = 0; i < 6; i++) {
+    const [random] = crypto.getRandomValues(new Uint32Array(1));
+    const code = `${randomSlug()}-${String(random % 1000).padStart(3, "0")}`;
+    if (!(await env.CAPTURES.head(`${CAPTURE_PREFIX}${code}.json`))) return code;
+  }
+  throw new Error("no free capture code");
+}
+
+async function handleCaptureList(env: Env): Promise<Response> {
+  // R2 lists by key, not by time, so read every page before the sort. The
+  // 90-day lifecycle rule bounds the number of objects.
+  const captures: { code: string; receivedAt: string; size: number }[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.CAPTURES.list({ prefix: CAPTURE_PREFIX, include: ["customMetadata"], cursor });
+    for (const object of page.objects) {
+      captures.push({
+        code: object.key.slice(CAPTURE_PREFIX.length, -".json".length),
+        receivedAt: object.customMetadata?.receivedAt ?? object.uploaded.toISOString(),
+        size: object.size,
+      });
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  captures.sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+  return privateJson({ captures: captures.slice(0, CAPTURE_LIST_LIMIT) });
+}
+
+function isCaptureCode(code: string): boolean {
+  return (
+    code.length >= 1 &&
+    code.length <= 64 &&
+    [...code].every((c) => "abcdefghijklmnopqrstuvwxyz0123456789-".includes(c))
+  );
+}
+
+async function handleCaptureGet(env: Env, code: string): Promise<Response> {
+  const object = isCaptureCode(code) ? await env.CAPTURES.get(`${CAPTURE_PREFIX}${code}.json`) : null;
+  if (!object) return privateJson({ error: "not found" }, 404);
+  return new Response(object.body, {
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
+/** Compares SHA-256 digests, so the comparison takes equal time for any input. */
+async function isAdmin(request: Request, env: Env): Promise<boolean> {
+  const token = bearer(request);
+  if (!token || !env.CAPTURES_ADMIN_TOKEN) return false;
+  const digest = (value: string) => crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return crypto.subtle.timingSafeEqual(await digest(token), await digest(env.CAPTURES_ADMIN_TOKEN));
+}
+
+/** A response with no CORS headers. */
+function privateJson(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
 }
 
 // MARK: - Event diffing
@@ -431,13 +579,20 @@ async function storePairTokens(
   await env.RELAY.put(`device:${device}:curreader`, readerHash);
 }
 
-async function checkPairRateLimit(env: Env, ip: string): Promise<boolean> {
-  const key = `pairlimit:${ip}`;
+/** Counts requests per client. The key holds a hash, so no IP address is stored. */
+async function checkRateLimit(
+  env: Env,
+  prefix: string,
+  ip: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<boolean> {
+  const key = `${prefix}:${await hashToken(ip)}`;
   const raw = await env.RELAY.get(key);
   const count = raw ? Number.parseInt(raw, 10) : 0;
-  if (count >= PAIR_RATE_LIMIT) return false;
+  if (count >= limit) return false;
   await env.RELAY.put(key, String(count + 1), {
-    expirationTtl: PAIR_RATE_WINDOW_SECONDS,
+    expirationTtl: windowSeconds,
   });
   return true;
 }

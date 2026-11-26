@@ -22,3 +22,7 @@ history/
 
 # Tooling scratch
 .playwright-mcp/
+
+# Updates worker
+updates-worker/node_modules/
+updates-worker/.wrangler/
