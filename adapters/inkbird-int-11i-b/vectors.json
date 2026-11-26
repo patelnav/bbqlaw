@@ -1,0 +1,387 @@
+[
+  {
+    "name": "auth: challenge 2a19e11e78aa",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb2a19e11e78aa"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fce2019f5a186a78"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge 5d734b60667d",
+    "nowMs": 1779981028033,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb5d734b60667d"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc2100e45a186a9c"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge 47377c8de21e",
+    "nowMs": 1779981075420,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb47377c8de21e"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fca401135b186aa5"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge 596c67b2e5d3",
+    "nowMs": 1779981114128,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb596c67b2e5d3"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc80003a5b186a8f"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge cb6ec0dcf745",
+    "nowMs": 1779981158542,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fbcb6ec0dcf745"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc1e02665b186a54"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge b5af2104872d",
+    "nowMs": 1779981199833,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fbb5af2104872d"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc41038f5b186a78"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge ffa2421a66a9",
+    "nowMs": 1779981223043,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fbffa2421a66a9"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc2b00a75b186a24"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge 8950e5402fc7",
+    "nowMs": 1779981263559,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb8950e5402fc7"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc2f02cf5b186a85"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge 6ba0ca5c6ee9",
+    "nowMs": 1779981292801,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb6ba0ca5c6ee9"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc2103ec5b186a10"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge 2daa38762211",
+    "nowMs": 1779981319466,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb2daa38762211"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fcd201075c186a2b"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge a00e0f1e07ce",
+    "nowMs": 1779980690146,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fba00e0f1e07ce"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc92009259186afd"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge b806c756e057",
+    "nowMs": 1779980237782,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fbb806c756e057"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc0e03cd57186aa1"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge 4a6db7788717",
+    "nowMs": 1779980273370,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb4a6db7788717"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc7201f157186a87"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge ec7039b602f2",
+    "nowMs": 1779980337868,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fbec7039b602f2"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc64033158186a4c"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge 3e3548d38de7",
+    "nowMs": 1779980368338,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb3e3548d38de7"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc52015058186ae8"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge b0b70b26dcec",
+    "nowMs": 1779981606365,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fbb0b70b26dcec"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fc6d01265d186a2a"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge d228101ad821",
+    "nowMs": 1779982130682,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fbd228101ad821"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fcaa02325f186aa0"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: ack ok -> ready",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb2a19e11e78aa"}},
+      {"notify": {"char": "FF02", "hex": "02fc00"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fce2019f5a186a78"}], "status": ["authenticating", "ready"]}
+  },
+  {
+    "name": "auth: ack rejected -> failed",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb2a19e11e78aa"}},
+      {"notify": {"char": "FF02", "hex": "02fc01"}}
+    ],
+    "expect": {"status": ["authenticating", "failed"]}
+  },
+  {
+    "name": "auth: retries then waiting",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"advance": 12500}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "01fb"}], "status": ["authenticating", "authenticating", "authenticating", "authenticating", "authenticating", "waiting"]}
+  },
+  {
+    "name": "auth: challenge stops retries",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb2a19e11e78aa"}},
+      {"advance": 12500}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fce2019f5a186a78"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "auth: challenge after ready writes nothing",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "02fc00"}},
+      {"notify": {"char": "FF02", "hex": "07fb2a19e11e78aa"}},
+      {"advance": 12500}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}], "status": ["authenticating", "ready"]}
+  },
+  {
+    "name": "frames: two frames in one notification",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "07fb2a19e11e78aa02fc00"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fce2019f5a186a78"}], "status": ["authenticating", "ready"]}
+  },
+  {
+    "name": "frames: zero length stops",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "0002fc00"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}], "status": ["authenticating"]}
+  },
+  {
+    "name": "frames: truncated frame stops",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "09fc00"}}
+    ],
+    "expect": {"status": ["authenticating"]}
+  },
+  {
+    "name": "frames: short challenge ignored",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "06fb2a19e11e78"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}]}
+  },
+  {
+    "name": "frames: long challenge uses first six bytes",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "09fb2a19e11e78aaffff"}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "08fce2019f5a186a78"}]}
+  },
+  {
+    "name": "temp: live 84.5",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "FF01", "hex": "02211f"}}
+    ],
+    "expect": {"readings": [{"channel": 0, "state": "live", "foodF": 84.5}], "writes": [], "status": []}
+  },
+  {
+    "name": "temp: fe7f00 -> docked",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "FF01", "hex": "fe7f00"}}
+    ],
+    "expect": {"readings": [{"channel": 0, "state": "docked"}]}
+  },
+  {
+    "name": "temp: ff7f00 -> docked",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "FF01", "hex": "ff7f00"}}
+    ],
+    "expect": {"readings": [{"channel": 0, "state": "docked"}]}
+  },
+  {
+    "name": "temp: 008000 -> docked",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "FF01", "hex": "008000"}}
+    ],
+    "expect": {"readings": [{"channel": 0, "state": "docked"}]}
+  },
+  {
+    "name": "temp: 000000 -> none",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "FF01", "hex": "000000"}}
+    ],
+    "expect": {"readings": [{"channel": 0, "state": "none"}]}
+  },
+  {
+    "name": "temp: ffff00 -> none",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "FF01", "hex": "ffff00"}}
+    ],
+    "expect": {"readings": [{"channel": 0, "state": "none"}]}
+  },
+  {
+    "name": "temp: 02 -> none",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "FF01", "hex": "02"}}
+    ],
+    "expect": {"readings": [{"channel": 0, "state": "none"}]}
+  },
+  {
+    "name": "battery: two bytes",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "2A19", "hex": "5037"}}
+    ],
+    "expect": {"battery": [{"base": 80, "probe": 55}]}
+  },
+  {
+    "name": "battery: one byte is base",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "2A19", "hex": "50"}}
+    ],
+    "expect": {"battery": [{"base": 80, "probe": null}]}
+  },
+  {
+    "name": "battery: empty clears",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"notify": {"char": "2A19", "hex": ""}}
+    ],
+    "expect": {"battery": [{"base": null, "probe": null}]}
+  },
+  {
+    "name": "alarm: set target 165",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "02fc00"}},
+      {"setTarget": {"channel": 0, "highF": 165}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "09010110744000000a1b06230100000000"}]}
+  },
+  {
+    "name": "alarm: clear target",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "02fc00"}},
+      {"setTarget": {"channel": 0, "highF": null}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "0a0101000000000000000006230100000000"}]}
+  },
+  {
+    "name": "alarm: mute buzzer",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "02fc00"}},
+      {"setBuzzer": {"channel": 0, "muted": true}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "030b1101"}]}
+  },
+  {
+    "name": "alarm: unmute buzzer",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"notify": {"char": "FF02", "hex": "02fc00"}},
+      {"setBuzzer": {"channel": 0, "muted": false}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}, {"char": "FF02", "hex": "030b5a02"}]}
+  },
+  {
+    "name": "alarm: set target before ready writes nothing",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"setTarget": {"channel": 0, "highF": 165}}
+    ],
+    "expect": {"writes": []}
+  },
+  {
+    "name": "alarm: buzzer while authenticating writes nothing",
+    "nowMs": 1779980959482,
+    "steps": [
+      {"ready": true},
+      {"setBuzzer": {"channel": 0, "muted": true}}
+    ],
+    "expect": {"writes": [{"char": "FF02", "hex": "01fb"}]}
+  }
+]

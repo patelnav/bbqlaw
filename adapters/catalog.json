@@ -1,0 +1,44 @@
+{
+  "adapters": [
+    {
+      "capabilities": [
+        "food",
+        "battery",
+        "docked",
+        "deviceAlarm"
+      ],
+      "channels": 1,
+      "engine": 1,
+      "gatt": {
+        "notify": [
+          "FF01",
+          "FF02",
+          "FF03",
+          "FF04",
+          "FF05",
+          "FF06",
+          "2A19"
+        ],
+        "read": [
+          "2A19"
+        ],
+        "write": [
+          "FF02"
+        ]
+      },
+      "id": "inkbird-int-11i-b",
+      "match": [
+        {
+          "namePrefix": "INT-11"
+        },
+        {
+          "namePrefix": "INKBIRD"
+        }
+      ],
+      "name": "INKBIRD INT-11I-B",
+      "script": "// INKBIRD INT-11I-B.\n//   FF01  temperature (notify): LE16 °F x 100\n//   FF02  auth + control (write / notify): concatenated <LEN><TYPE><body> frames\n//   2A19  battery: [base %, probe %]\n//\n// The device sends the auth challenge only after every FF00-family notify\n// characteristic is subscribed. The engine does that before onReady().\n\nvar CONTROL = \"FF02\";\nvar MAX_ATTEMPTS = 5;\nvar RETRY_MS = 2500;\nvar TARGET_SCALE = 100; // °F multiplier in device target frames\nvar BUZZER_VOLUME = 2;  // 1 = low ... 3 = high\n\nvar attempts = 0;\nvar challengeSeen = false;\nvar authState = \"none\"; // none | requested | waiting | authed | failed\n\n// Non-reflected (MSB-first) CRC-8.\nfunction crc8(bytes, poly, initial) {\n  var crc = initial;\n  for (var i = 0; i < bytes.length; i++) {\n    crc ^= bytes[i];\n    for (var bit = 0; bit < 8; bit++) {\n      crc = (crc & 0x80) ? (((crc << 1) ^ poly) & 0xff) : ((crc << 1) & 0xff);\n    }\n  }\n  return crc;\n}\n\n// Verify packet `08 fc <ms%1000 LE16><epoch_s LE32><CRC>`.\nfunction authResponse(challenge) {\n  var millis = Math.floor(host.nowMs());\n  var epoch = Math.floor(millis / 1000) % 4294967296;\n  var rem = millis % 1000;\n  var time6 = [\n    rem & 0xff, (rem >>> 8) & 0xff,\n    epoch & 0xff, (epoch >>> 8) & 0xff, (epoch >>> 16) & 0xff, (epoch >>> 24) & 0xff\n  ];\n  var inner = crc8(time6, 0xd5, 0x00);   // CRC-8/DVB-S2\n  var cdma = crc8(challenge, 0x9b, 0xff); // CRC-8/CDMA2000\n  var check = crc8(time6.concat([inner, cdma]), 0xd5, 0x00);\n  return [0x08, 0xfc].concat(time6, [check]);\n}\n\nfunction startAuth() {\n  attempts += 1;\n  var attempt = attempts;\n  authState = \"requested\";\n  host.status(\"authenticating\");\n  host.log(\"auth: -> 01 fb (attempt \" + attempt + \")\");\n  host.write(CONTROL, [0x01, 0xfb]);\n  host.after(RETRY_MS, function () {\n    if (challengeSeen || authState !== \"requested\" || attempt !== attempts) return;\n    if (attempt < MAX_ATTEMPTS) {\n      startAuth();\n    } else {\n      host.log(\"auth: no challenge, waiting for probe\");\n      authState = \"waiting\";\n      host.status(\"waiting\");\n    }\n  });\n}\n\nfunction parseFrames(bytes) {\n  var frames = [];\n  var i = 0;\n  while (i < bytes.length) {\n    var length = bytes[i];\n    if (length === 0 || i + 1 + length > bytes.length) break;\n    frames.push({ type: bytes[i + 1], body: bytes.slice(i + 2, i + 1 + length) });\n    i += 1 + length;\n  }\n  return frames;\n}\n\nfunction handleControl(bytes) {\n  var authed = authState === \"authed\"; // as of the start of this notification\n  parseFrames(bytes).forEach(function (f) {\n    if (f.type === 0xfb && f.body.length >= 6 && !challengeSeen && !authed) {\n      challengeSeen = true;\n      host.log(\"auth: <- challenge; -> verify\");\n      host.write(CONTROL, authResponse(f.body.slice(0, 6)));\n    } else if (f.type === 0xfc && !authed) {\n      if (f.body[0] === 0) {\n        authState = \"authed\";\n        host.status(\"ready\");\n      } else {\n        authState = \"failed\";\n        var code = f.body.length > 0 ? f.body[0] : 0xff;\n        host.status(\"failed\", \"auth rejected (status \" + code + \")\");\n      }\n    }\n  });\n}\n\nfunction handleTemperature(bytes) {\n  if (bytes.length < 2) {\n    host.reading(0, { state: \"none\" });\n    return;\n  }\n  var raw = bytes[0] | (bytes[1] << 8);\n  if (raw === 0x7ffe || raw === 0x7fff || raw === 0x8000) {\n    host.reading(0, { state: \"docked\" }); // error / no probe / docked or off\n  } else if (raw === 0x0000 || raw === 0xffff) {\n    host.reading(0, { state: \"none\" });\n  } else {\n    host.reading(0, { state: \"live\", foodF: raw / 100 });\n  }\n}\n\n// A single byte is the base level (byte-0 ordering).\nfunction handleBattery(bytes) {\n  host.battery({\n    base: bytes.length > 0 ? bytes[0] : null,\n    probe: bytes.length > 1 ? bytes[1] : null\n  });\n}\n\nfunction frame(type, body) {\n  return [1 + body.length, type].concat(body);\n}\n\nvar adapter = {\n  onReady: function () {\n    startAuth();\n  },\n\n  onNotify: function (char, bytes) {\n    if (char === \"FF01\") handleTemperature(bytes);\n    else if (char === \"FF02\") handleControl(bytes);\n    else if (char === \"2A19\") handleBattery(bytes);\n  },\n\n  setTarget: function (channel, highF) {\n    var body1;\n    var body2 = [0x01, 0x00, 0x00, 0x00, 0x00];\n    if (highF === null) {\n      body1 = [0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];\n    } else {\n      var scaled = Math.min(65535, Math.max(0, Math.trunc(highF * TARGET_SCALE)));\n      body1 = [0x01, 0x10, scaled & 0xff, scaled >> 8, 0x00, 0x00, 0x0a, 0x1b];\n    }\n    host.write(CONTROL, frame(0x01, body1).concat(frame(0x23, body2)));\n  },\n\n  setBuzzer: function (channel, muted) {\n    host.write(CONTROL, muted ? [0x03, 0x0b, 0x11, 0x01] : [0x03, 0x0b, 0x5a, BUZZER_VOLUME]);\n  }\n};\n",
+      "version": 1
+    }
+  ],
+  "schema": 1
+}
