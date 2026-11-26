@@ -1,0 +1,13 @@
+node_modules/
+.expo/
+dist/
+build/
+*.tsbuildinfo
+expo-env.d.ts
+.env*.local
+# Native build output (ios/ itself is committed)
+ios/build/
+ios/Pods/
+ios/.xcode.env.local
+xcuserdata/
+DerivedData/
