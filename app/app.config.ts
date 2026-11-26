@@ -37,7 +37,7 @@ const config: ExpoConfig = {
   ios: {
     bundleIdentifier: 'app.bbqlaw.ios',
     appleTeamId: '866MN8FJSP',
-    buildNumber: '3',
+    buildNumber: '4',
     supportsTablet: false,
     infoPlist: {
       CFBundleDisplayName: 'BBQlaw',
