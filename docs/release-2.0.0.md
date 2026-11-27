@@ -2,12 +2,12 @@
 
 ## App Store "What's New"
 
-> BBQlaw 2.0 is rebuilt, so we can add thermometers and fixes faster.
+> BBQlaw 2.0 is a full rebuild.
 >
-> • If BBQlaw can't read your thermometer, you can record 60 seconds of its
-> Bluetooth data and send it to us. Nothing is sent unless you tap Send.
+> If BBQlaw can't read your thermometer, you can now record its Bluetooth data
+> and send it to us. Nothing is sent unless you tap Send.
 >
-> After this update, add your probe again. If you linked an agent, tap Link again.
+> After you update, add your probe again. If you linked an agent, tap Link again.
 
 ## App Privacy label
 
